@@ -1,0 +1,231 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>GeoPlace Paint</title>
+  <style>
+    body { font-family: sans-serif; margin:0; display:flex; height:100vh; }
+    #sidebar { width:250px; background:#222; color:#eee; padding:10px; box-sizing:border-box; }
+    #canvasWrapper { flex:1; position:relative; background:#333; overflow:hidden; }
+    canvas { image-rendering: pixelated; }
+    .tool-section { margin-bottom:12px; }
+    button, select, input { width:100%; margin-top:4px; }
+    #status { font-size:11px; white-space:pre-wrap; max-height:30vh; overflow:auto; }
+    #jobs { font-size:11px; white-space:pre-wrap; max-height:25vh; overflow:auto; background:#111; padding:4px; }
+    #modifiedList { font-size:11px; max-height:15vh; overflow:auto; background:#111; padding:4px; }
+    .tileTag { display:inline-block; padding:2px 4px; margin:2px; background:#444; cursor:pointer; }
+    .tileTag.sel { background:#0a84ff; }
+  </style>
+</head>
+<body>
+  <div id="sidebar">
+    <h3>Paint</h3>
+    <div class="tool-section">
+      <label>Color <input type="color" id="color" value="#ff0000" /></label>
+      <label> <input type="checkbox" id="eraser" /> Eraser</label>
+      <label>Pen Size <input type="number" id="penSize" min="1" max="16" value="1" /></label>
+      <button id="btnGenerateSelection">選択タイル3D生成</button>
+      <button id="btnGenerateAll">全変更タイル3D生成</button>
+      <button id="btnResetView">ビューリセット</button>
+      <button id="btnPushModified">変更タイル送信のみ</button>
+    </div>
+    <div class="tool-section">
+      <p>操作: 左描画 / 中 or 右ドラッグ=移動 / ホイール=ズーム</p>
+      <p>タイル: <span id="tileSizeDisp">32</span> px</p>
+    </div>
+    <div class="tool-section">
+      <strong>変更タイル</strong>
+      <div id="modifiedList"></div>
+    </div>
+    <div class="tool-section">
+      <strong>ジョブ</strong>
+      <div id="jobs"></div>
+    </div>
+    <pre id="status"></pre>
+  </div>
+  <div id="canvasWrapper">
+    <canvas id="draw" width="1024" height="1024"></canvas>
+  </div>
+  <script>
+    const WS_URL = (location.origin.replace(/^http/,'ws')) + '/ws';
+    const TILE_SIZE = 32;
+    const CANVAS_W = 22400;
+    const CANVAS_H = 21966;
+    const canvas = document.getElementById('draw');
+    const ctx = canvas.getContext('2d');
+    ctx.imageSmoothingEnabled = false;
+    let scale = 1;
+    let offsetX = 0;
+    let offsetY = 0;
+
+    const colorInput = document.getElementById('color');
+    const penSizeInput = document.getElementById('penSize');
+    const statusEl = document.getElementById('status');
+    const jobsEl = document.getElementById('jobs');
+    const modifiedListEl = document.getElementById('modifiedList');
+
+    const tileBuffers = new Map();
+    const modifiedTiles = new Set();
+    const selectedTiles = new Set();
+    const jobState = {};
+
+    function ensureTileBuffer(tx, ty) {
+      const key = `${tx}_${ty}`;
+      if (!tileBuffers.has(key)) {
+        const buf = new Uint8ClampedArray(TILE_SIZE*TILE_SIZE*4);
+        tileBuffers.set(key, buf);
+      }
+      return tileBuffers.get(key);
+    }
+    function worldToTile(x, y) { return [Math.floor(x / TILE_SIZE), Math.floor(y / TILE_SIZE)]; }
+    function setPixelInTile(tileBuf, localX, localY, rgba) {
+      const idx = (localY * TILE_SIZE + localX) * 4;
+      for (let i=0;i<4;i++) tileBuf[idx+i] = rgba[i];
+    }
+
+    function drawGrid() {
+      ctx.clearRect(0,0,canvas.width, canvas.height);
+      ctx.save();
+      ctx.scale(scale, scale);
+      ctx.translate(-offsetX, -offsetY);
+      const viewW = canvas.width / scale;
+      const viewH = canvas.height / scale;
+      const startX = Math.floor(offsetX / TILE_SIZE)*TILE_SIZE;
+      const startY = Math.floor(offsetY / TILE_SIZE)*TILE_SIZE;
+      const endX = offsetX + viewW;
+      const endY = offsetY + viewH;
+
+      tileBuffers.forEach((buf, key)=>{
+        const [tx,ty] = key.split('_').map(Number);
+        const imgData = new ImageData(buf, TILE_SIZE, TILE_SIZE);
+        ctx.putImageData(imgData, tx*TILE_SIZE, ty*TILE_SIZE);
+      });
+
+      ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+      for (let x=startX; x<endX; x+=TILE_SIZE) { ctx.beginPath(); ctx.moveTo(x, offsetY); ctx.lineTo(x, endY); ctx.stroke(); }
+      for (let y=startY; y<endY; y+=TILE_SIZE) { ctx.beginPath(); ctx.moveTo(offsetX, y); ctx.lineTo(endX, y); ctx.stroke(); }
+
+      // modified
+      ctx.strokeStyle = 'rgba(255,0,0,0.6)';
+      modifiedTiles.forEach(k=>{ const [tx,ty]=k.split('_').map(Number); ctx.strokeRect(tx*TILE_SIZE, ty*TILE_SIZE, TILE_SIZE, TILE_SIZE); });
+      // selected overlay
+      ctx.strokeStyle = 'rgba(0,160,255,0.9)';
+      selectedTiles.forEach(k=>{ const [tx,ty]=k.split('_').map(Number); ctx.strokeRect(tx*TILE_SIZE+1, ty*TILE_SIZE+1, TILE_SIZE-2, TILE_SIZE-2); });
+      ctx.restore();
+    }
+
+  let isDrawing = false; let isPanning = false; let lastX=0, lastY=0;
+    canvas.addEventListener('mousedown', e=>{
+      if (e.shiftKey) { // タイル選択トグル
+        const rect = canvas.getBoundingClientRect();
+        const x = (e.clientX - rect.left)/scale + offsetX;
+        const y = (e.clientY - rect.top)/scale + offsetY;
+        const [tx,ty] = worldToTile(x,y); const key=`${tx}_${ty}`;
+        if (selectedTiles.has(key)) selectedTiles.delete(key); else selectedTiles.add(key);
+        refreshModifiedList(); drawGrid(); return;
+      }
+  if (e.button === 0) { isDrawing = true; }
+      if (e.button === 1 || e.button === 2) { isPanning = true; }
+      lastX = e.clientX; lastY = e.clientY;
+    });
+    canvas.addEventListener('mouseup', ()=>{ isDrawing=false; isPanning=false; });
+    canvas.addEventListener('mouseleave', ()=>{ isDrawing=false; isPanning=false; });
+
+    canvas.addEventListener('mousemove', e=>{
+      if (isPanning){
+        const dx = (e.clientX - lastX)/scale; const dy = (e.clientY - lastY)/scale;
+        offsetX = Math.min(Math.max(offsetX - dx, 0), CANVAS_W - canvas.width/scale);
+        offsetY = Math.min(Math.max(offsetY - dy, 0), CANVAS_H - canvas.height/scale);
+        lastX = e.clientX; lastY = e.clientY; drawGrid(); return;
+      }
+      if (!isDrawing) return;
+      const rect = canvas.getBoundingClientRect();
+      const x = (e.clientX - rect.left)/scale + offsetX; const y = (e.clientY - rect.top)/scale + offsetY;
+      const [tx,ty] = worldToTile(x,y); const lx = Math.floor(x - tx*TILE_SIZE); const ly = Math.floor(y - ty*TILE_SIZE);
+  const penSize = parseInt(penSizeInput.value,10);
+  const isEraser = document.getElementById('eraser').checked;
+  const rgba = isEraser ? [0,0,0,0] : hexToRgba(colorInput.value);
+  const buf = ensureTileBuffer(tx,ty);
+      for (let py=0; py<penSize; py++) for (let px=0; px<penSize; px++){
+        const gx=lx+px, gy=ly+py; if(gx<0||gy<0||gx>=TILE_SIZE||gy>=TILE_SIZE) continue; setPixelInTile(buf,gx,gy,rgba);
+      }
+      modifiedTiles.add(`${tx}_${ty}`); refreshModifiedList(); drawGrid();
+    });
+
+    canvas.addEventListener('wheel', e=>{ e.preventDefault(); const delta = e.deltaY < 0 ? 1.1 : 0.9; scale = Math.min(Math.max(scale*delta, 0.2), 32); drawGrid(); }, {passive:false});
+
+  // prevent context menu on canvas so right-button can be used for panning
+  canvas.addEventListener('contextmenu', e=>{ e.preventDefault(); });
+
+    function hexToRgba(hex){ const v=parseInt(hex.slice(1),16); return [(v>>16)&255,(v>>8)&255,v&255,255]; }
+    function collectTilePayload(tx,ty){ const buf=ensureTileBuffer(tx,ty); const arr=[]; arr.length=TILE_SIZE*TILE_SIZE; for(let i=0;i<arr.length;i++){const base=i*4; arr[i]=[buf[base],buf[base+1],buf[base+2],buf[base+3]];} return {tile_x:tx,tile_y:ty,pixels:arr,tile_size:TILE_SIZE,user_id:'local'}; }
+    async function pushTile(tx,ty){ const payload=collectTilePayload(tx,ty); const res=await fetch('/api/paint',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}); const j = await res.json();
+      // try to fetch per-tile PNG that the server saved and update the tile buffer
+      try{
+        const p = `/data/tiles/tile_${tx}_${ty}.png`;
+        const r = await fetch(p);
+        if (r.ok){ const blob = await r.blob(); const img = await createImageBitmap(blob);
+            const off = document.createElement('canvas'); off.width = img.width; off.height = img.height; const offCtx = off.getContext('2d'); offCtx.drawImage(img,0,0);
+            const data = offCtx.getImageData(0,0,TILE_SIZE,TILE_SIZE).data;
+            const buf = ensureTileBuffer(tx,ty);
+            for (let i=0;i<TILE_SIZE*TILE_SIZE*4;i++) buf[i]=data[i];
+            drawGrid();
+        }
+      }catch(e){ console.warn('failed to fetch tile after push',e); }
+      return j; }
+    async function pushTiles(keys){ for(const key of keys){ const [tx,ty]=key.split('_').map(Number); await pushTile(tx,ty);} }
+
+    function refreshModifiedList(){
+      modifiedListEl.innerHTML='';
+      modifiedTiles.forEach(k=>{ const div=document.createElement('span'); div.textContent=k; div.className='tileTag'+(selectedTiles.has(k)?' sel':''); div.onclick=()=>{ if(selectedTiles.has(k)) selectedTiles.delete(k); else selectedTiles.add(k); refreshModifiedList(); drawGrid(); }; modifiedListEl.appendChild(div); });
+    }
+
+    document.getElementById('btnGenerateAll').onclick = async ()=>{
+      await pushTiles(modifiedTiles); const res = await fetch('/api/generate',{method:'POST',headers:{'Content-Type':'application/json'}, body: JSON.stringify({tiles:null})}); statusEl.textContent=JSON.stringify(await res.json(),null,2);
+    };
+    document.getElementById('btnGenerateSelection').onclick = async ()=>{
+      const target = selectedTiles.size? selectedTiles : modifiedTiles; await pushTiles(target); const list = Array.from(target).map(k=>k.split('_').map(Number)); const res=await fetch('/api/generate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({tiles:list})}); statusEl.textContent=JSON.stringify(await res.json(),null,2);
+    };
+    document.getElementById('btnPushModified').onclick = async ()=>{ await pushTiles(modifiedTiles); statusEl.textContent='Pushed modified tiles.'; };
+    document.getElementById('btnResetView').onclick = ()=>{ scale=1; offsetX=0; offsetY=0; drawGrid(); };
+
+    // WebSocket for progress
+    function connectWS(){
+      const ws = new WebSocket(WS_URL);
+      ws.onmessage = ev => {
+        try{ const msg = JSON.parse(ev.data); handleWS(msg); }catch(e){ console.error(e);} };
+      ws.onclose = ()=> setTimeout(connectWS, 2000);
+    }
+    function handleWS(msg){
+      if (msg.type==='job_progress'){ jobState[msg.job_id] = jobState[msg.job_id]||{}; jobState[msg.job_id].stage=msg.stage; jobState[msg.job_id].entry=msg.entry; }
+      if (msg.type==='job_done'){ jobState[msg.job_id] = jobState[msg.job_id]||{}; jobState[msg.job_id].doneStage=msg.stage; }
+      if (msg.type==='hello'){ /* initial sync ignored for now */ }
+      renderJobs();
+    }
+    function renderJobs(){ jobsEl.textContent = JSON.stringify(jobState,null,2); }
+
+    // load existing canvas.png from server into tile buffers
+    async function loadCanvasBackground(){
+      try{
+        const resp = await fetch('/data/canvas.png');
+        if (!resp.ok) return;
+        const blob = await resp.blob();
+        const img = await createImageBitmap(blob);
+        // draw to an offscreen canvas to extract tiles
+        const off = document.createElement('canvas'); off.width = img.width; off.height = img.height; const offCtx = off.getContext('2d'); offCtx.drawImage(img,0,0);
+        for (let ty=0; ty<Math.ceil(off.height/TILE_SIZE); ty++){
+          for (let tx=0; tx<Math.ceil(off.width/TILE_SIZE); tx++){
+            const data = offCtx.getImageData(tx*TILE_SIZE, ty*TILE_SIZE, TILE_SIZE, TILE_SIZE).data;
+            const key = `${tx}_${ty}`;
+            const buf = ensureTileBuffer(tx,ty);
+            for (let i=0;i<TILE_SIZE*TILE_SIZE*4;i++) buf[i]=data[i];
+          }
+        }
+        drawGrid();
+      }catch(e){ console.warn('no canvas.png loaded',e); }
+    }
+
+    drawGrid(); refreshModifiedList(); connectWS(); loadCanvasBackground();
+  </script>
+</body>
+</html>

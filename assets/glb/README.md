@@ -1,0 +1,1 @@
+Place generated glTF/glb files in this folder. このディレクトリは静的配信用です。

@@ -1,0 +1,64 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>GeoPlace World</title>
+  <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
+  <style>
+    body { margin:0; }
+    #hud { position:absolute; top:8px; left:8px; background:rgba(0,0,0,0.55); color:#fff; padding:6px; font-size:12px; max-width:300px; }
+  </style>
+</head>
+<body>
+  <div id="hud">Connecting...</div>
+  <a-scene>
+    <a-entity position="0 1.6 5">
+      <a-entity camera look-controls wasd-controls></a-entity>
+    </a-entity>
+    <a-entity id="objects-root"></a-entity>
+    <a-plane position="0 0 0" rotation="-90 0 0" width="1000" height="1000" color="#222"></a-plane>
+    <a-sky color="#111"></a-sky>
+  </a-scene>
+  <script>
+    const root = document.getElementById('objects-root');
+    const hud = document.getElementById('hud');
+    const WS_URL = (location.origin.replace(/^http/,'ws')) + '/ws';
+    let objects = [];
+
+    function renderObjects(objs){
+      objects = objs;
+      root.innerHTML='';
+      objs.forEach(o=>{
+        const e = document.createElement('a-entity');
+        e.setAttribute('gltf-model', o.glb_url);
+        e.setAttribute('position', `${o.x} ${o.y} ${o.z}`);
+        e.setAttribute('rotation', o.rotation.join(' '));
+        const sc = o.scale || 1.0; e.setAttribute('scale', `${sc} ${sc} ${sc}`);
+        // quality color ring
+        if (o.quality === 'refined') e.setAttribute('material','color:#FFF;opacity:0.95');
+        e.addEventListener('click', ()=>{
+          hud.textContent = `id: ${o.id}\nquality: ${o.quality}\nurl: ${o.glb_url}`;
+        });
+        root.appendChild(e);
+      });
+      hud.textContent = `Objects: ${objs.length}`;
+    }
+
+    function connectWS(){
+      const ws = new WebSocket(WS_URL);
+      ws.onmessage = ev => { try{ const msg=JSON.parse(ev.data); handleWS(msg);}catch(e){console.error(e);} };
+      ws.onopen = ()=> hud.textContent='Connected (waiting updates)';
+      ws.onclose = ()=> { hud.textContent='Reconnecting...'; setTimeout(connectWS,1500); };
+    }
+    function handleWS(msg){
+      if (msg.type==='hello'){ renderObjects(msg.objects); }
+      if (msg.type==='job_progress' || msg.type==='job_done'){
+        // 再取得
+        fetch('/api/objects.json').then(r=>r.json()).then(renderObjects);
+      }
+    }
+
+    connectWS();
+  </script>
+</body>
+</html>

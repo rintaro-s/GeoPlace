@@ -1,0 +1,91 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg
+*.egg-info/
+pip-wheel-metadata/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.pytest_cache/*
+.coverage
+coverage.xml
+htmlcov/
+.cache
+nosetests.xml
+pytestdebug.log
+
+# Virtualenv / Environments
+.env
+.env/
+.venv/
+venv/
+ENV/
+env/
+env.bak/
+.venv*/
+
+# Packaging / build
+build/
+dist/
+eggs/
+*.egg-info/
+pip-wheel-metadata/
+wheelhouse/
+*.whl
+
+# Mypy, Pyright, Pyre, Pytype
+.mypy_cache/
+.pyre/
+.pytype/
+
+# Jupyter
+.ipynb_checkpoints
+jupyter_notebook_config.py
+*.nbconvert.ipynb
+
+# VSCode
+.vscode/
+.vscode/*
+
+# IDEs / Editors
+.idea/
+*.sublime-workspace
+*.sublime-project
+*.tmproj
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs and databases
+*.log
+*.sqlite3
+*.db
+*.db-journal
+
+# Secrets / env files
+*.env
+secrets.yml
+
+# Terraform / other common tools (optional)
+.terraform/
+*.tfstate
+*.tfstate.*
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Ignore compiled C extensions and build artefacts
+*.so
+*.dylib
+*.dll
+
+# Custom local files
+/local_settings.py

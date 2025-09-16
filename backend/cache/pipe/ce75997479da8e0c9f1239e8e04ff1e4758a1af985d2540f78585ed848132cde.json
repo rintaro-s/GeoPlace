@@ -1,0 +1,17 @@
+{
+  "hash": "ce75997479da8e0c9f1239e8e04ff1e4758a1af985d2540f78585ed848132cde",
+  "attrs": {
+    "category": "object",
+    "colors": [
+      "red",
+      "white"
+    ],
+    "size": "medium",
+    "orientation": "front",
+    "details": [
+      "placeholder"
+    ]
+  },
+  "prompt": "voxel-style object, medium, primary colors: red, white, details: placeholder, low-poly, game-friendly, 3D render, front view",
+  "quality": "light"
+}

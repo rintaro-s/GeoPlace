@@ -1,0 +1,22 @@
+# dot2world 設定 (拡張)
+TILE_PX: 32
+EMBED_TOP_K: 8
+SD_RESOLUTION: 512
+SD_STEPS_LIGHT: 20
+SD_STEPS_HIGH: 50
+MAX_CONCURRENT_WORKERS: 4
+PER_TILE_COOLDOWN: 5
+CANVAS_WIDTH: 22400
+CANVAS_HEIGHT: 21966
+ASSETS_DIR: assets
+GLB_SUBDIR: glb
+CACHE_DIR: backend/cache
+OBJECTS_JSON: objects.json
+ENABLE_REFINER: true
+REFINE_DELAY_SEC: 5
+# TripoSR 設定 (外部リポジトリへのパス)
+TRIPOSR_DIR: "E:\\GITS\\TripoSR-main"
+TRIPOSR_PY: "run.py"
+TRIPOSR_BAKE_TEXTURE: true
+# Stable Diffusion のモデル ID (diffusers)
+SD_MODEL_ID: "runwayml/stable-diffusion-v1-5"

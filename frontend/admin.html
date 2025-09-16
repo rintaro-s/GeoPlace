@@ -1,0 +1,40 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>GeoPlace Admin</title>
+</head>
+<body>
+  <h1>Admin</h1>
+  <div>
+    <button id="btn-model-status">Get Model Status</button>
+    <pre id="model-status">-</pre>
+  </div>
+  <div>
+    <button id="btn-clear-cache">Clear Pipeline Cache</button>
+    <span id="clear-res"></span>
+  </div>
+  <div>
+    <button id="btn-generate-all">Trigger Generate (all modified)</button>
+    <span id="gen-res"></span>
+  </div>
+
+  <script>
+    document.getElementById('btn-model-status').onclick = async () => {
+      const res = await fetch('/api/admin/models');
+      const j = await res.json();
+      document.getElementById('model-status').textContent = JSON.stringify(j, null, 2);
+    }
+    document.getElementById('btn-clear-cache').onclick = async () => {
+      const res = await fetch('/api/admin/clear_cache', {method:'POST'});
+      const j = await res.json();
+      document.getElementById('clear-res').textContent = JSON.stringify(j);
+    }
+    document.getElementById('btn-generate-all').onclick = async () => {
+      const res = await fetch('/api/generate', {method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify({tiles: null})});
+      const j = await res.json();
+      document.getElementById('gen-res').textContent = JSON.stringify(j);
+    }
+  </script>
+</body>
+</html>
