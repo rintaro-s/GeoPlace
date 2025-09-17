@@ -6,14 +6,30 @@
 - `/frontend/paint.html` : パン / ズーム / ペン / タイル選択 (Shift+クリック) / 変更タイル送信 / 3D生成トリガ / WebSocket 進捗表示
 - `/frontend/world.html` : A-Frame ワールド表示 (WebSocket で更新反映, light→refined の段階的差し替え)
 
-## 起動
-```
+## 起動 - 重要！
+**必ずサーバを起動してからブラウザでアクセスしてください**
+
+```powershell
+# 1. 仮想環境をアクティベート
 python -m venv venv
 ./venv/Scripts/Activate.ps1
+
+# 2. 依存関係をインストール
 pip install -r requirements.txt
+
+# 3. サーバを起動 (推奨方法)
+python -m uvicorn backend.main:app --host 127.0.0.1 --port 8001
+
+# または直接実行
 python backend/main.py
-# ブラウザ: http://localhost:8001/frontend/paint.html など
 ```
+
+**ブラウザでのアクセス:**
+- 描画ツール: http://127.0.0.1:8001/frontend/paint.html
+- 3Dワールド: http://127.0.0.1:8001/frontend/world.html  
+- 管理画面: http://127.0.0.1:8001/frontend/admin.html
+
+**注意:** file:// で直接 HTML を開くのではなく、必ず上記の http:// URLs からアクセスしてください。
 
 ## 差分 -> 生成フロー (現実装)
 1. paint.html で描画 (ローカルに変更タイル保持)  
@@ -61,7 +77,7 @@ python backend/main.py
 
 ## 全体フロー（要点）
 
-1. クライアントが data\canvas.png の上で、同じ解像度のキャンバス上でドットにドット絵を書く。軽量化のために生成時にはタイル（TILE_PX=32）に分ける → 差分タイル(前回の3Dデータ生成から変更されたタイル)をサーバへ送信。タイル分けは事前にしておいて、どこで切り取られるかがユーザーにわかるようになっている。これにより、タイルをまたいでドットに色塗りをシてしまうことを防ぐ。
+1. クライアントが canvas.pngキャンバス上でタイル（TILE_PX=32）を編集 → 差分タイルをサーバへ送信。タイル分けは事前にしておいて、どこで切り取られるかがユーザーにわかるようになっている。共同で同時編集も可能。
 
 2. サーバは差分タイルの bbox を切り出し、**VLM（LMstudio上のGemma3）** に投げて属性を抽出（ラベル・色・大きさ・向き・意図的なメタ情報）。
 
@@ -74,6 +90,8 @@ python backend/main.py
 6. Open3D で簡易クリーニング（ノイズ除去・法線推定・単純なリトポ）→ glTF/GLB に変換。
 
 7. 生成 glTF を `objects.json` に登録して A-frame ワールドに差し替え・配置する（全ユーザ共通）。
+
+8. 3Dワールドを、wasdとマウスで自由に行きできる。スペースやシフトで上下移動なども。座標を入力することでテレポートも可能。
 
 ## 使用モデル（最小必須／DL方法）
 

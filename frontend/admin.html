@@ -2,39 +2,274 @@
 <html>
 <head>
   <meta charset="utf-8" />
-  <title>GeoPlace Admin</title>
+  <title>dot2world - 管理画面</title>
+  <style>
+    body { 
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+      margin: 0; padding: 20px; 
+      background: #1a1a1a; color: #fff;
+    }
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+    h1 {
+      color: #4CAF50;
+      text-align: center;
+      margin-bottom: 30px;
+    }
+    .section {
+      background: #2d2d2d;
+      padding: 20px;
+      margin: 20px 0;
+      border-radius: 8px;
+      border: 1px solid #444;
+    }
+    .section h3 {
+      color: #4CAF50;
+      margin-top: 0;
+      border-bottom: 2px solid #4CAF50;
+      padding-bottom: 10px;
+    }
+    button {
+      background: #4CAF50;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 4px;
+      cursor: pointer;
+      margin: 5px;
+      font-size: 14px;
+    }
+    button:hover {
+      background: #45a049;
+    }
+    button:disabled {
+      background: #666;
+      cursor: not-allowed;
+    }
+    .status-box {
+      background: #1a1a1a;
+      padding: 15px;
+      border-radius: 4px;
+      margin: 10px 0;
+      font-family: monospace;
+      font-size: 12px;
+      max-height: 300px;
+      overflow-y: auto;
+      border: 1px solid #555;
+    }
+    .success { color: #4CAF50; }
+    .error { color: #ff6b6b; }
+    .warning { color: #ffa726; }
+    .info { color: #2196F3; }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 20px;
+    }
+    .stat-card {
+      background: #3a3a3a;
+      padding: 15px;
+      border-radius: 6px;
+      text-align: center;
+    }
+    .stat-number {
+      font-size: 24px;
+      font-weight: bold;
+      color: #4CAF50;
+    }
+    .stat-label {
+      font-size: 12px;
+      color: #ccc;
+      margin-top: 5px;
+    }
+  </style>
 </head>
 <body>
-  <h1>Admin</h1>
-  <div>
-    <button id="btn-model-status">Get Model Status</button>
-    <pre id="model-status">-</pre>
-  </div>
-  <div>
-    <button id="btn-clear-cache">Clear Pipeline Cache</button>
-    <span id="clear-res"></span>
-  </div>
-  <div>
-    <button id="btn-generate-all">Trigger Generate (all modified)</button>
-    <span id="gen-res"></span>
+  <div class="container">
+    <h1>🛠️ dot2world 管理画面</h1>
+    
+    <div class="grid">
+      <div class="stat-card">
+        <div class="stat-number" id="object-count">-</div>
+        <div class="stat-label">3Dオブジェクト数</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-number" id="tile-count">-</div>
+        <div class="stat-label">変更タイル数</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-number" id="job-count">-</div>
+        <div class="stat-label">実行中ジョブ数</div>
+      </div>
+    </div>
+    
+    <div class="section">
+      <h3>🤖 AIモデル状態</h3>
+      <button id="btn-model-status">モデル状態を確認</button>
+      <button id="btn-reload-models">モデル再読み込み</button>
+      <div class="status-box" id="model-status">モデル状態を確認してください</div>
+    </div>
+    
+    <div class="section">
+      <h3>🗂️ キャッシュ管理</h3>
+      <button id="btn-clear-cache">パイプラインキャッシュクリア</button>
+      <button id="btn-clear-tiles">タイルキャッシュクリア</button>
+      <div class="status-box" id="cache-status">キャッシュ操作の結果がここに表示されます</div>
+    </div>
+    
+    <div class="section">
+      <h3>⚙️ 生成管理</h3>
+      <button id="btn-generate-all">全変更タイル3D生成</button>
+      <button id="btn-stop-jobs">全ジョブ停止</button>
+      <div class="status-box" id="generation-status">生成操作の結果がここに表示されます</div>
+    </div>
+    
+    <div class="section">
+      <h3>📊 システム情報</h3>
+      <button id="btn-system-info">システム情報取得</button>
+      <div class="status-box" id="system-info">システム情報がここに表示されます</div>
+    </div>
+    
+    <div class="section">
+      <h3>🔗 クイックリンク</h3>
+      <button onclick="window.open('/frontend/paint.html', '_blank')">🎨 ペイントツール</button>
+      <button onclick="window.open('/frontend/world.html', '_blank')">🌍 3Dワールド</button>
+      <button onclick="window.open('/api/objects.json', '_blank')">📄 オブジェクトJSON</button>
+    </div>
   </div>
 
   <script>
+    let baseUrl = '';
+    if (location.protocol === 'file:') {
+      baseUrl = 'http://127.0.0.1:8001';
+    }
+    
+    // Utility functions
+    function formatJson(obj) {
+      return JSON.stringify(obj, null, 2);
+    }
+    
+    function showStatus(elementId, message, type = 'info') {
+      const el = document.getElementById(elementId);
+      const timestamp = new Date().toLocaleTimeString('ja-JP');
+      const className = type;
+      el.innerHTML = `<div class="${className}">[${timestamp}] ${message}</div>` + el.innerHTML;
+    }
+    
+    function showError(elementId, error) {
+      showStatus(elementId, `エラー: ${error.message || error}`, 'error');
+    }
+    
+    // Model status
     document.getElementById('btn-model-status').onclick = async () => {
-      const res = await fetch('/api/admin/models');
-      const j = await res.json();
-      document.getElementById('model-status').textContent = JSON.stringify(j, null, 2);
-    }
+      try {
+        showStatus('model-status', 'モデル状態を確認中...', 'info');
+        const res = await fetch(baseUrl + '/api/admin/models');
+        const j = await res.json();
+        
+        let statusHtml = '<div class="success">モデル状態:</div>';
+        statusHtml += `<div>Stable Diffusion: ${j.sd_loaded ? '<span class="success">✅ 読み込み済み</span>' : '<span class="error">❌ 未読み込み</span>'}</div>`;
+        if (j.sd_error) {
+          statusHtml += `<div class="error">エラー: ${j.sd_error}</div>`;
+        }
+        statusHtml += `<pre>${formatJson(j)}</pre>`;
+        
+        document.getElementById('model-status').innerHTML = statusHtml;
+      } catch (error) {
+        showError('model-status', error);
+      }
+    };
+    
+    // Cache management
     document.getElementById('btn-clear-cache').onclick = async () => {
-      const res = await fetch('/api/admin/clear_cache', {method:'POST'});
-      const j = await res.json();
-      document.getElementById('clear-res').textContent = JSON.stringify(j);
-    }
+      try {
+        showStatus('cache-status', 'パイプラインキャッシュをクリア中...', 'info');
+        const res = await fetch(baseUrl + '/api/admin/clear_cache', {method:'POST'});
+        const j = await res.json();
+        showStatus('cache-status', `キャッシュクリア完了: ${formatJson(j)}`, 'success');
+      } catch (error) {
+        showError('cache-status', error);
+      }
+    };
+    
+    // Generation management
     document.getElementById('btn-generate-all').onclick = async () => {
-      const res = await fetch('/api/generate', {method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify({tiles: null})});
-      const j = await res.json();
-      document.getElementById('gen-res').textContent = JSON.stringify(j);
-    }
+      try {
+        showStatus('generation-status', '全変更タイルの3D生成を開始中...', 'info');
+        const res = await fetch(baseUrl + '/api/generate', {
+          method:'POST', 
+          headers:{'content-type':'application/json'}, 
+          body: JSON.stringify({tiles: null})
+        });
+        const j = await res.json();
+        showStatus('generation-status', `生成ジョブ開始: ${formatJson(j)}`, 'success');
+      } catch (error) {
+        showError('generation-status', error);
+      }
+    };
+    
+    // System info
+    document.getElementById('btn-system-info').onclick = async () => {
+      try {
+        showStatus('system-info', 'システム情報を取得中...', 'info');
+        
+        // Get multiple endpoints
+        const [objectsRes, tilesRes] = await Promise.all([
+          fetch(baseUrl + '/api/objects.json').catch(() => ({json: () => []})),
+          fetch(baseUrl + '/api/tiles').catch(() => ({json: () => []}))
+        ]);
+        
+        const objects = await objectsRes.json();
+        const tiles = await tilesRes.json();
+        
+        const info = {
+          timestamp: new Date().toISOString(),
+          objects_count: objects.length,
+          tiles_count: tiles.length,
+          user_agent: navigator.userAgent,
+          screen_resolution: `${screen.width}x${screen.height}`,
+          viewport: `${window.innerWidth}x${window.innerHeight}`
+        };
+        
+        document.getElementById('system-info').innerHTML = `
+          <div class="success">システム情報:</div>
+          <pre>${formatJson(info)}</pre>
+        `;
+        
+        // Update stats
+        document.getElementById('object-count').textContent = objects.length;
+        document.getElementById('tile-count').textContent = tiles.length;
+        
+      } catch (error) {
+        showError('system-info', error);
+      }
+    };
+    
+    // Additional buttons
+    document.getElementById('btn-reload-models').onclick = async () => {
+      showStatus('model-status', 'モデル再読み込み機能は未実装です', 'warning');
+    };
+    
+    document.getElementById('btn-clear-tiles').onclick = async () => {
+      showStatus('cache-status', 'タイルキャッシュクリア機能は未実装です', 'warning');
+    };
+    
+    document.getElementById('btn-stop-jobs').onclick = async () => {
+      showStatus('generation-status', 'ジョブ停止機能は未実装です', 'warning');
+    };
+    
+    // Auto-refresh stats every 30 seconds
+    setInterval(() => {
+      document.getElementById('btn-system-info').click();
+    }, 30000);
+    
+    // Initial load
+    document.addEventListener('DOMContentLoaded', () => {
+      document.getElementById('btn-system-info').click();
+      document.getElementById('btn-model-status').click();
+    });
   </script>
 </body>
 </html>

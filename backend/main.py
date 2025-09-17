@@ -52,7 +52,7 @@ ASSET_GLB_DIR = ROOT / 'assets' / 'glb'
 STATE_DIR = ROOT / 'backend' / 'cache'
 CANVAS_PATH = DATA_DIR / 'canvas.png'
 OBJECTS_JSON = ASSET_GLB_DIR / 'objects.json'
-TILE_PX = 32
+TILE_PX = settings.tile_px
 
 app = FastAPI(title="GeoPlace API")
 app.add_middleware(
@@ -119,11 +119,13 @@ model_status = {
 # ---- Helpers ----
 
 def ensure_canvas():
-    CANVAS_W, CANVAS_H = 22400, 21966  # ユーザー指定
+    CANVAS_W, CANVAS_H = settings.canvas_width, settings.canvas_height
     if not CANVAS_PATH.exists():
         CANVAS_PATH.parent.mkdir(parents=True, exist_ok=True)
-        img = Image.new('RGBA', (CANVAS_W, CANVAS_H), (255,255,255,0))
+        # Create a completely transparent canvas
+        img = Image.new('RGBA', (CANVAS_W, CANVAS_H), (0,0,0,0))
         img.save(CANVAS_PATH)
+        print(f"Created new transparent canvas: {CANVAS_PATH}")
 
 
 def load_canvas() -> Image.Image:
@@ -229,33 +231,53 @@ def _cut_tile_image(tile_x: int, tile_y: int, tile_size: int) -> bytes:
 
 def _run_light_job(job_id: str, tiles: List[Tuple[int,int]], refine: bool):
     current_jobs[job_id]['status'] = 'processing'
-    objects = load_objects()
-    for idx,(tx,ty) in enumerate(tiles):
+    
+    # Import the new workflow
+    from .workflows.generate_3d import run_complete_3d_workflow, register_3d_object
+    
+    for idx, (tx, ty) in enumerate(tiles):
         try:
-            tile_bytes = _cut_tile_image(tx,ty,settings.tile_px)
-            glb_path, meta = pipeline.run_light_pipeline(tile_bytes)
-            entry_id = f'tile_{tx}_{ty}'
+            current_jobs[job_id]['progress'] = f'{idx+1}/{len(tiles)} - VLM分析中...'
+            asyncio.run(manager.broadcast({'type':'job_progress','job_id':job_id,'stage':'vlm','progress':current_jobs[job_id]['progress']}))
+            
+            # Get tile image
+            tile_bytes = _cut_tile_image(tx, ty, settings.tile_px)
+            
+            # Run complete workflow: VLM → SD → TripoSR
+            current_jobs[job_id]['progress'] = f'{idx+1}/{len(tiles)} - 3D生成中...'
+            asyncio.run(manager.broadcast({'type':'job_progress','job_id':job_id,'stage':'3d_generation','progress':current_jobs[job_id]['progress']}))
+            
+            glb_path, metadata = run_complete_3d_workflow(tile_bytes, tx, ty)
+            
+            # Register in objects.json
+            register_3d_object(glb_path, metadata, tx, ty)
+            
+            # Create entry for broadcast
             entry = {
-                'id': entry_id,
+                'id': f'tile_{tx}_{ty}',
                 'x': tx * settings.tile_px / 10.0,
                 'y': 0,
                 'z': ty * settings.tile_px / 10.0,
-                'rotation': [0,0,0],
+                'rotation': [0, 0, 0],
                 'scale': 1.0,
                 'glb_url': f'/assets/{settings.glb_subdir}/{glb_path.name}',
-                'quality': 'light',
-                'meta': meta,
+                'quality': metadata.get('quality', 'light'),
+                'metadata': metadata,
             }
-            objects = [o for o in objects if o['id'] != entry_id]
-            objects.append(entry)
-            current_jobs[job_id]['progress'] = f'{idx+1}/{len(tiles)} light generated'
-            asyncio.run(manager.broadcast({'type':'job_progress','job_id':job_id,'stage':'light','entry':entry}))
+            
+            current_jobs[job_id]['progress'] = f'{idx+1}/{len(tiles)} 完了'
+            asyncio.run(manager.broadcast({'type':'job_progress','job_id':job_id,'stage':'complete','entry':entry}))
+            
         except Exception as e:
-            current_jobs[job_id]['progress'] = f'error: {e}'
-    save_objects(objects)
+            error_msg = f'タイル {tx},{ty} エラー: {str(e)}'
+            current_jobs[job_id]['progress'] = error_msg
+            print(f"3D generation error for tile {tx},{ty}: {e}")
+            asyncio.run(manager.broadcast({'type':'job_error','job_id':job_id,'error':error_msg}))
+    
+    # Mark tiles as processed
     modified_tiles.difference_update(tiles)
-    current_jobs[job_id]['status'] = 'light_ready'
-    asyncio.run(manager.broadcast({'type':'job_done','job_id':job_id,'stage':'light'}))
+    current_jobs[job_id]['status'] = 'completed'
+    asyncio.run(manager.broadcast({'type':'job_done','job_id':job_id,'stage':'all_complete'}))
 
     # refine スケジュール
     if refine and settings.enable_refiner:
@@ -306,12 +328,147 @@ async def admin_clear_cache():
 async def admin_clear_cache_wr():
     return await admin_clear_cache()
 
+@router.get('/tiles')
+async def list_tiles():
+    """List all available tiles"""
+    tiles = []
+    tile_dir = DATA_DIR / 'tiles'
+    if tile_dir.exists():
+        for tile_file in tile_dir.glob('tile_*.png'):
+            parts = tile_file.stem.split('_')
+            if len(parts) == 3:
+                try:
+                    x, y = int(parts[1]), int(parts[2])
+                    tiles.append({'x': x, 'y': y, 'url': f'/data/tiles/{tile_file.name}'})
+                except ValueError:
+                    continue
+    return tiles
+
+import hashlib
+import os
+
+# Tile cache directory
+TILE_CACHE_DIR = Path("E:/files/GeoPLace-tmp/images")
+TILE_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+
+# In-memory cache for recently accessed tiles
+tile_memory_cache = {}
+MAX_MEMORY_CACHE = 500
+
+def get_tile_cache_path(tile_x: int, tile_y: int) -> Path:
+    """Get cache file path for a tile"""
+    return TILE_CACHE_DIR / f"tile_{tile_x}_{tile_y}.png"
+
+@router.get('/tile/{tile_x}/{tile_y}')
+async def get_tile_image(tile_x: int, tile_y: int):
+    """Extract and serve a specific tile from the main canvas with aggressive caching"""
+    from fastapi.responses import Response
+    from io import BytesIO
+    
+    tile_key = f"{tile_x},{tile_y}"
+    
+    try:
+        # 1. Check memory cache first (fastest)
+        if tile_key in tile_memory_cache:
+            return Response(content=tile_memory_cache[tile_key], media_type='image/png')
+        
+        # 2. Check disk cache
+        cache_path = get_tile_cache_path(tile_x, tile_y)
+        if cache_path.exists():
+            tile_data = cache_path.read_bytes()
+            # Store in memory cache
+            if len(tile_memory_cache) < MAX_MEMORY_CACHE:
+                tile_memory_cache[tile_key] = tile_data
+            return Response(content=tile_data, media_type='image/png')
+        
+        # 3. Check individual tile file
+        tile_path = DATA_DIR / 'tiles' / f'tile_{tile_x}_{tile_y}.png'
+        if tile_path.exists():
+            tile_data = tile_path.read_bytes()
+            # Cache to disk and memory
+            cache_path.write_bytes(tile_data)
+            if len(tile_memory_cache) < MAX_MEMORY_CACHE:
+                tile_memory_cache[tile_key] = tile_data
+            return Response(content=tile_data, media_type='image/png')
+        
+        # 4. Extract from main canvas (slowest path)
+        canvas_img = load_canvas()
+        
+        # Calculate tile boundaries using settings
+        start_x = tile_x * settings.tile_px
+        start_y = tile_y * settings.tile_px
+        end_x = min(start_x + settings.tile_px, canvas_img.width)
+        end_y = min(start_y + settings.tile_px, canvas_img.height)
+        
+        # Check if tile is within canvas bounds
+        if start_x >= canvas_img.width or start_y >= canvas_img.height:
+            # Create and cache transparent tile
+            transparent_tile = Image.new('RGBA', (settings.tile_px, settings.tile_px), (0, 0, 0, 0))
+            buffer = BytesIO()
+            transparent_tile.save(buffer, format='PNG', optimize=True)
+            tile_data = buffer.getvalue()
+            
+            # Cache transparent tile
+            cache_path.write_bytes(tile_data)
+            if len(tile_memory_cache) < MAX_MEMORY_CACHE:
+                tile_memory_cache[tile_key] = tile_data
+            
+            return Response(content=tile_data, media_type='image/png')
+        
+        # Extract tile from canvas
+        tile_img = canvas_img.crop((start_x, start_y, end_x, end_y))
+        
+        # If tile is smaller than tile_px (edge tiles), pad with transparency
+        if tile_img.width < settings.tile_px or tile_img.height < settings.tile_px:
+            padded_tile = Image.new('RGBA', (settings.tile_px, settings.tile_px), (0, 0, 0, 0))
+            padded_tile.paste(tile_img, (0, 0))
+            tile_img = padded_tile
+        
+        # Save to buffer with optimization
+        buffer = BytesIO()
+        tile_img.save(buffer, format='PNG', optimize=True, compress_level=1)
+        tile_data = buffer.getvalue()
+        
+        # Cache to disk and memory
+        cache_path.write_bytes(tile_data)
+        if len(tile_memory_cache) < MAX_MEMORY_CACHE:
+            tile_memory_cache[tile_key] = tile_data
+        
+        return Response(content=tile_data, media_type='image/png')
+        
+    except Exception as e:
+        print(f"Error serving tile {tile_x},{tile_y}: {e}")
+        # Return cached transparent tile or create new one
+        transparent_tile = Image.new('RGBA', (settings.tile_px, settings.tile_px), (0, 0, 0, 0))
+        buffer = BytesIO()
+        transparent_tile.save(buffer, format='PNG', optimize=True)
+        tile_data = buffer.getvalue()
+        return Response(content=tile_data, media_type='image/png')
+
+@app.get('/api/tile/{tile_x}/{tile_y}')
+async def get_tile_image_wr(tile_x: int, tile_y: int):
+    return await get_tile_image(tile_x, tile_y)
+
+@app.get('/api/tiles')
+async def get_tiles_wr():
+    return await list_tiles()
+
 # ---- API Routes ----
 @router.post('/paint')
 async def paint(payload: PaintPayload):
     try:
         write_tile_to_canvas(payload)
         modified_tiles.add((payload.tile_x, payload.tile_y))
+        
+        # Broadcast tile change to all connected clients for collaborative editing
+        tile_data = {
+            'type': 'tile_updated',
+            'tile_x': payload.tile_x,
+            'tile_y': payload.tile_y,
+            'pixels': payload.pixels
+        }
+        await manager.broadcast(tile_data)
+        
         return {'ok': True, 'modified_count': len(modified_tiles)}
     except Exception as e:
         return JSONResponse({'error': str(e)}, status_code=400)
@@ -386,11 +543,6 @@ async def get_glb(filename: str):
         return FileResponse(path)
     return JSONResponse({'error': 'not found'}, status_code=404)
 
-if __name__ == '__main__':
-    # start uvicorn
-    uvicorn.run('backend.main:app', host='0.0.0.0', port=8001, reload=False)
-
-
 @app.on_event('startup')
 async def startup_load_models():
     """Background load SD model to warm cache. Updates model_status."""
@@ -411,3 +563,7 @@ async def startup_load_models():
             model_status['sd_loaded'] = False
             model_status['sd_error'] = str(e)
     threading.Thread(target=_load, daemon=True).start()
+
+if __name__ == '__main__':
+    # start uvicorn
+    uvicorn.run('backend.main:app', host='0.0.0.0', port=8001, reload=False)

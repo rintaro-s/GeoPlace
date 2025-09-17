@@ -1,0 +1,319 @@
+[
+  {
+    "id": "tile_281_498",
+    "x": 899.2,
+    "y": 0,
+    "z": 1593.6,
+    "rotation": [
+      0,
+      0,
+      0
+    ],
+    "scale": 1.0,
+    "glb_url": "/assets/glb/28d45a62cd98f7f0b2940c83f350cd8dd802a6fab84da19ecf95baa79462f93f_refined.glb",
+    "quality": "refined",
+    "meta": {
+      "hash": "28d45a62cd98f7f0b2940c83f350cd8dd802a6fab84da19ecf95baa79462f93f",
+      "attrs": {
+        "category": "object",
+        "colors": [
+          "red",
+          "white"
+        ],
+        "size": "medium",
+        "orientation": "front",
+        "details": [
+          "placeholder"
+        ]
+      },
+      "prompt": "voxel-style object, medium, primary colors: red, white, details: placeholder, low-poly, game-friendly, 3D render, front view",
+      "quality": "light"
+    },
+    "meta_refined": {
+      "base": "28d45a62cd98f7f0b2940c83f350cd8dd802a6fab84da19ecf95baa79462f93f_light.glb",
+      "refined": "28d45a62cd98f7f0b2940c83f350cd8dd802a6fab84da19ecf95baa79462f93f_refined.glb",
+      "quality": "refined"
+    }
+  },
+  {
+    "id": "tile_50_75",
+    "x": 50.0,
+    "y": 0,
+    "z": 75.0,
+    "rotation": [
+      0,
+      0,
+      0
+    ],
+    "scale": 1.0,
+    "glb_url": "/assets/glb/tile_50_75_1758073968.glb",
+    "metadata": {
+      "workflow_id": "tile_50_75_1758073968",
+      "tile_coords": [
+        50,
+        75
+      ],
+      "vlm_attributes": {
+        "category": "house",
+        "colors": [
+          "brown",
+          "red"
+        ],
+        "size": "medium",
+        "orientation": "front",
+        "details": [
+          "ドア",
+          "屋根",
+          "壁"
+        ]
+      },
+      "sd_prompt": "voxel-style house, medium size, primary colors: brown, red, features: ドア, 屋根, 壁, low-poly, game-friendly, 3D render, front view, clean background, high quality, detailed",
+      "processing_time": 11.809788465499878,
+      "timestamp": 1758073980.4502609,
+      "quality": "light",
+      "pipeline_version": "1.0"
+    },
+    "created_at": 1758073980.4502609,
+    "tile_coords": [
+      50,
+      75
+    ],
+    "size_category": "medium"
+  },
+  {
+    "id": "tile_284_387",
+    "x": 284.0,
+    "y": 0,
+    "z": 387.0,
+    "rotation": [
+      0,
+      0,
+      0
+    ],
+    "scale": 1.0,
+    "glb_url": "/assets/glb/tile_284_387_1758074627_fallback_refined.glb",
+    "metadata": {
+      "workflow_id": "tile_284_387_1758074627",
+      "tile_coords": [
+        284,
+        387
+      ],
+      "error": "TripoSR did not produce a .glb/.obj/.ply in its output dir",
+      "fallback": true,
+      "timestamp": 1758074715.5004146,
+      "quality": "fallback"
+    },
+    "created_at": 1758074715.5014145,
+    "tile_coords": [
+      284,
+      387
+    ],
+    "size_category": "medium",
+    "quality": "refined",
+    "meta_refined": {
+      "base": "tile_284_387_1758074627_fallback.glb",
+      "refined": "tile_284_387_1758074627_fallback_refined.glb",
+      "quality": "refined"
+    }
+  },
+  {
+    "id": "tile_285_387",
+    "x": 285.0,
+    "y": 0,
+    "z": 387.0,
+    "rotation": [
+      0,
+      0,
+      0
+    ],
+    "scale": 1.0,
+    "glb_url": "/assets/glb/tile_285_387_1758074715_fallback_refined.glb",
+    "metadata": {
+      "workflow_id": "tile_285_387_1758074715",
+      "tile_coords": [
+        285,
+        387
+      ],
+      "error": "TripoSR did not produce a .glb/.obj/.ply in its output dir",
+      "fallback": true,
+      "timestamp": 1758074801.2626657,
+      "quality": "fallback"
+    },
+    "created_at": 1758074801.2626657,
+    "tile_coords": [
+      285,
+      387
+    ],
+    "size_category": "medium",
+    "quality": "refined",
+    "meta_refined": {
+      "base": "tile_285_387_1758074715_fallback.glb",
+      "refined": "tile_285_387_1758074715_fallback_refined.glb",
+      "quality": "refined"
+    }
+  },
+  {
+    "id": "tile_200_300",
+    "x": 200.0,
+    "y": 0,
+    "z": 300.0,
+    "rotation": [
+      0,
+      0,
+      0
+    ],
+    "scale": 1.0,
+    "glb_url": "/assets/glb/tile_200_300_1758075507_fallback_refined.glb",
+    "metadata": {
+      "workflow_id": "tile_200_300_1758075507",
+      "tile_coords": [
+        200,
+        300
+      ],
+      "error": "TripoSR did not produce a .glb/.obj/.ply in its output dir",
+      "fallback": true,
+      "timestamp": 1758075570.277338,
+      "quality": "fallback"
+    },
+    "created_at": 1758075570.277338,
+    "tile_coords": [
+      200,
+      300
+    ],
+    "size_category": "medium",
+    "quality": "refined",
+    "meta_refined": {
+      "base": "tile_200_300_1758075507_fallback.glb",
+      "refined": "tile_200_300_1758075507_fallback_refined.glb",
+      "quality": "refined"
+    }
+  },
+  {
+    "id": "tile_150_200",
+    "x": 150.0,
+    "y": 0,
+    "z": 200.0,
+    "rotation": [
+      0,
+      0,
+      0
+    ],
+    "scale": 1.0,
+    "glb_url": "/assets/glb/tile_150_200_1758076181_fallback_refined.glb",
+    "metadata": {
+      "workflow_id": "tile_150_200_1758076181",
+      "tile_coords": [
+        150,
+        200
+      ],
+      "error": "TripoSR did not produce a .glb/.obj/.ply in its output dir",
+      "fallback": true,
+      "timestamp": 1758076243.3234375,
+      "quality": "fallback"
+    },
+    "created_at": 1758076243.3234375,
+    "tile_coords": [
+      150,
+      200
+    ],
+    "size_category": "medium",
+    "quality": "refined",
+    "meta_refined": {
+      "base": "tile_150_200_1758076181_fallback.glb",
+      "refined": "tile_150_200_1758076181_fallback_refined.glb",
+      "quality": "refined"
+    }
+  },
+  {
+    "id": "tile_344_379",
+    "x": 344.0,
+    "y": 0,
+    "z": 379.0,
+    "rotation": [
+      0,
+      0,
+      0
+    ],
+    "scale": 1.0,
+    "glb_url": "/assets/glb/tile_344_379_1758076411_refined.glb",
+    "metadata": {
+      "workflow_id": "tile_344_379_1758076411",
+      "tile_coords": [
+        344,
+        379
+      ],
+      "vlm_attributes": {
+        "category": "object",
+        "colors": [
+          "gray",
+          "white"
+        ],
+        "size": "medium",
+        "orientation": "front",
+        "details": [
+          "シンプルなオブジェクト"
+        ]
+      },
+      "sd_prompt": "voxel-style object, medium size, primary colors: gray, white, features: シンプルなオブジェクト, low-poly, game-friendly, 3D render, front view, clean background, high quality, detailed",
+      "processing_time": 64.19955396652222,
+      "timestamp": 1758076475.2135022,
+      "quality": "light",
+      "pipeline_version": "1.0"
+    },
+    "created_at": 1758076475.2135022,
+    "tile_coords": [
+      344,
+      379
+    ],
+    "size_category": "medium",
+    "quality": "refined",
+    "meta_refined": {
+      "base": "tile_344_379_1758076411.glb",
+      "refined": "tile_344_379_1758076411_refined.glb",
+      "quality": "refined"
+    }
+  },
+  {
+    "id": "tile_100_100",
+    "x": 100.0,
+    "y": 0,
+    "z": 100.0,
+    "rotation": [
+      0,
+      0,
+      0
+    ],
+    "scale": 1.0,
+    "glb_url": "/assets/glb/tile_100_100_1758077454.glb",
+    "metadata": {
+      "workflow_id": "tile_100_100_1758077454",
+      "tile_coords": [
+        100,
+        100
+      ],
+      "vlm_attributes": {
+        "category": "object",
+        "colors": [
+          "gray",
+          "white"
+        ],
+        "size": "medium",
+        "orientation": "front",
+        "details": [
+          "シンプルなオブジェクト"
+        ]
+      },
+      "sd_prompt": "voxel-style object, medium size, primary colors: gray, white, features: シンプルなオブジェクト, low-poly, game-friendly, 3D render, front view, clean background, high quality, detailed",
+      "processing_time": 55.52609848976135,
+      "timestamp": 1758077509.7986536,
+      "quality": "light",
+      "pipeline_version": "1.0"
+    },
+    "created_at": 1758077509.799658,
+    "tile_coords": [
+      100,
+      100
+    ],
+    "size_category": "medium"
+  }
+]

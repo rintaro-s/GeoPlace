@@ -41,33 +41,24 @@ def generate_glb_from_image(image_bytes: bytes, out_path: Path, quality: str = '
         outdir = td_path / 'out'
         outdir.mkdir()
 
-        # build command
-        # read TripoSR path from Settings
-        try:
-            triposr_dir = Path(settings.TRIPOSR_DIR)
-        except Exception:
-            triposr_dir = None
-
-        if not triposr_dir or not triposr_dir.exists():
-            raise FileNotFoundError(f'TripoSR directory not found; check TRIPOSR_DIR in backend/config.yaml (tried: {triposr_dir})')
-
-        triposr_py = triposr_dir / getattr(settings, 'TRIPOSR_PY', 'run.py')
-        if not triposr_py.exists():
-            # maybe entry is just filename in dir
-            triposr_py = triposr_dir / 'run.py'
+        # Use the PowerShell script to run TripoSR with the correct environment
+        script_path = Path(__file__).parent.parent.parent / 'run_triposr.ps1'
+        
+        # Verify script exists
+        if not script_path.exists():
+            raise FileNotFoundError(f'run_triposr.ps1 not found at: {script_path}')
+            
+        # Build the PowerShell command (do not wrap paths in extra quotes)
         cmd = [
-            'python', str(triposr_py), str(inp),
-            '--output-dir', str(outdir),
-            '--model-save-format', 'glb'
+            'powershell.exe',
+            '-ExecutionPolicy', 'Bypass',
+            '-File', str(script_path),
+            str(inp),
+            str(outdir)
         ]
-        # optionally pass bake-texture
-        bake = getattr(settings, 'TRIPOSR_BAKE_TEXTURE', True)
-        if bake:
-            cmd.append('--bake-texture')
-
         # run
         try:
-            subprocess.check_call(cmd, cwd=str(triposr_dir))
+            subprocess.check_call(cmd, cwd=str(script_path.parent))
         except subprocess.CalledProcessError as e:
             # Fall back: TripoSR failed (missing deps). Create a minimal placeholder GLB
             # so the rest of the pipeline can proceed in environments without TripoSR.
