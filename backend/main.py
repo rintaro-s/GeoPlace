@@ -406,25 +406,10 @@ async def get_tile_image(tile_x: int, tile_y: int):
             transparent_tile = Image.new('RGBA', (settings.tile_px, settings.tile_px), (0, 0, 0, 0))
             buffer = BytesIO()
             transparent_tile.save(buffer, format='PNG', optimize=True)
-            buffer.seek(0)  # Reset buffer position
             tile_data = buffer.getvalue()
             
-            # Verify data is not empty
-            if len(tile_data) == 0:
-                print(f"Warning: Empty tile data for transparent tile {tile_x},{tile_y}")
-                # Create minimal PNG manually
-                transparent_tile = Image.new('RGBA', (32, 32), (0, 0, 0, 0))
-                buffer = BytesIO()
-                transparent_tile.save(buffer, format='PNG')
-                buffer.seek(0)
-                tile_data = buffer.getvalue()
-            
             # Cache transparent tile
-            try:
-                cache_path.write_bytes(tile_data)
-            except Exception as e:
-                print(f"Failed to cache tile {tile_x},{tile_y}: {e}")
-            
+            cache_path.write_bytes(tile_data)
             if len(tile_memory_cache) < MAX_MEMORY_CACHE:
                 tile_memory_cache[tile_key] = tile_data
             
@@ -442,25 +427,10 @@ async def get_tile_image(tile_x: int, tile_y: int):
         # Save to buffer with optimization
         buffer = BytesIO()
         tile_img.save(buffer, format='PNG', optimize=True, compress_level=1)
-        buffer.seek(0)  # Reset buffer position
         tile_data = buffer.getvalue()
         
-        # Verify data is not empty
-        if len(tile_data) == 0:
-            print(f"Warning: Empty tile data for tile {tile_x},{tile_y}")
-            # Fallback: create simple colored tile
-            fallback_tile = Image.new('RGBA', (32, 32), (128, 128, 128, 255))
-            buffer = BytesIO()
-            fallback_tile.save(buffer, format='PNG')
-            buffer.seek(0)
-            tile_data = buffer.getvalue()
-        
         # Cache to disk and memory
-        try:
-            cache_path.write_bytes(tile_data)
-        except Exception as e:
-            print(f"Failed to cache tile {tile_x},{tile_y}: {e}")
-            
+        cache_path.write_bytes(tile_data)
         if len(tile_memory_cache) < MAX_MEMORY_CACHE:
             tile_memory_cache[tile_key] = tile_data
         
@@ -472,19 +442,7 @@ async def get_tile_image(tile_x: int, tile_y: int):
         transparent_tile = Image.new('RGBA', (settings.tile_px, settings.tile_px), (0, 0, 0, 0))
         buffer = BytesIO()
         transparent_tile.save(buffer, format='PNG', optimize=True)
-        buffer.seek(0)
         tile_data = buffer.getvalue()
-        
-        # Final check for empty data
-        if len(tile_data) == 0:
-            print(f"Critical: Still empty tile data in exception handler for {tile_x},{tile_y}")
-            # Last resort: create minimal valid PNG
-            fallback_tile = Image.new('RGBA', (32, 32), (255, 0, 0, 128))  # Semi-transparent red
-            buffer = BytesIO()
-            fallback_tile.save(buffer, format='PNG')
-            buffer.seek(0)
-            tile_data = buffer.getvalue()
-        
         return Response(content=tile_data, media_type='image/png')
 
 @app.get('/api/tile/{tile_x}/{tile_y}')
@@ -584,75 +542,6 @@ async def get_glb(filename: str):
     if path.exists():
         return FileResponse(path)
     return JSONResponse({'error': 'not found'}, status_code=404)
-
-# Admin API endpoints
-@app.get('/api/models')
-async def list_models():
-    """List all generated 3D models"""
-    models = []
-    if ASSET_GLB_DIR.exists():
-        for file_path in ASSET_GLB_DIR.iterdir():
-            if file_path.suffix.lower() in ['.glb', '.obj']:
-                models.append({
-                    'name': file_path.name,
-                    'url': f'/assets/glb/{file_path.name}',
-                    'type': file_path.suffix.upper()[1:],
-                    'size': file_path.stat().st_size,
-                    'modified': file_path.stat().st_mtime
-                })
-    return models
-
-@app.post('/api/admin/delete_models')
-async def delete_all_models():
-    """Delete all generated 3D models"""
-    deleted_count = 0
-    if ASSET_GLB_DIR.exists():
-        for file_path in ASSET_GLB_DIR.iterdir():
-            if file_path.suffix.lower() in ['.glb', '.obj', '.png', '.jpg', '.jpeg']:
-                try:
-                    file_path.unlink()
-                    deleted_count += 1
-                except Exception as e:
-                    print(f"Failed to delete {file_path}: {e}")
-    
-    # Also clear objects.json
-    objects_file = ROOT / 'assets' / 'objects.json'
-    if objects_file.exists():
-        with open(objects_file, 'w') as f:
-            json.dump([], f)
-    
-    return {'deleted_count': deleted_count, 'message': f'Deleted {deleted_count} model files'}
-
-@app.post('/api/admin/delete_images')
-async def delete_all_images():
-    """Delete all tile images"""
-    deleted_count = 0
-    tiles_dir = DATA_DIR / 'tiles'
-    if tiles_dir.exists():
-        for file_path in tiles_dir.iterdir():
-            if file_path.suffix.lower() in ['.png', '.jpg', '.jpeg']:
-                try:
-                    file_path.unlink()
-                    deleted_count += 1
-                except Exception as e:
-                    print(f"Failed to delete {file_path}: {e}")
-    
-    # Clear modified tiles tracking
-    modified_tiles.clear()
-    
-    return {'deleted_count': deleted_count, 'message': f'Deleted {deleted_count} tile images'}
-
-@app.get('/api/admin/models')
-async def admin_model_status():
-    """Get detailed model status for admin"""
-    return {
-        'sd_loaded': model_status.get('sd_loaded', False),
-        'sd_error': model_status.get('sd_error'),
-        'triposr_available': True,  # Assume available since we have the script
-        'current_jobs': len(current_jobs),
-        'modified_tiles': len(modified_tiles),
-        'timestamp': time.time()
-    }
 
 @app.on_event('startup')
 async def startup_load_models():

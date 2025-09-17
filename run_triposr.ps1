@@ -47,7 +47,7 @@ $env:PYTHONPATH = "$triposrDir;$env:PYTHONPATH"
 Push-Location $triposrDir
 try {
     Write-Host "Running TripoSR with input: $inputImage, output: $outputDir"
-    python run.py $inputImage --output-dir $outputDir --bake-texture --render
+    python run.py $inputImage --output-dir $outputDir --model-save-format glb --bake-texture --render
     $exitCode = $LASTEXITCODE
     if ($exitCode -ne 0) {
         Write-Error "TripoSR failed with exit code: $exitCode"

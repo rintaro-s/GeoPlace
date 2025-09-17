@@ -1,0 +1,1338 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>dot2world - ペイントツール</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { 
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+      margin: 0; 
+      display: flex; 
+      height: 100vh; 
+      background: #1a1a1a; 
+      overflow: hidden;
+    }
+    
+    #sidebar { 
+      width: 280px; 
+      background: #2d2d2d; 
+      color: #fff; 
+      padding: 15px; 
+      border-right: 2px solid #444; 
+      overflow-y: auto; 
+      flex-shrink: 0;
+    }
+    
+    #canvasArea { 
+      flex: 1; 
+      display: flex; 
+      flex-direction: column; 
+      position: relative;
+      background: #333;
+    }
+    
+    #toolbar {
+      background: #2d2d2d;
+      padding: 10px;
+      border-bottom: 1px solid #444;
+      display: flex;
+      align-items: center;
+      gap: 15px;
+      flex-shrink: 0;
+    }
+    
+    #canvasContainer { 
+      flex: 1; 
+      position: relative; 
+      overflow: hidden;
+      background: #222;
+    }
+    
+    #mainCanvas { 
+      position: absolute;
+      cursor: crosshair;
+      image-rendering: pixelated;
+      image-rendering: -moz-crisp-edges;
+      image-rendering: crisp-edges;
+    }
+    
+    #minimap {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      width: 200px;
+      height: 200px;
+      background: rgba(0,0,0,0.8);
+      border: 2px solid #444;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    
+    #minimapCanvas {
+      width: 100%;
+      height: 100%;
+      image-rendering: pixelated;
+    }
+    
+    #coordinates {
+      position: absolute;
+      bottom: 10px;
+      left: 10px;
+      background: rgba(0,0,0,0.8);
+      color: #fff;
+      padding: 8px;
+      border-radius: 4px;
+      font-family: monospace;
+      font-size: 12px;
+    }
+    
+    .tool-section { 
+      margin-bottom: 15px; 
+      padding: 12px; 
+      background: #3a3a3a; 
+      border-radius: 6px; 
+    }
+    
+    .tool-section h4 { 
+      margin: 0 0 10px 0; 
+      color: #4CAF50; 
+      font-size: 14px; 
+      border-bottom: 1px solid #4CAF50;
+      padding-bottom: 5px;
+    }
+    
+    button { 
+      width: 100%; 
+      margin: 4px 0; 
+      padding: 8px; 
+      background: #4CAF50; 
+      color: white; 
+      border: none; 
+      border-radius: 4px; 
+      cursor: pointer; 
+      font-size: 12px; 
+    }
+    
+    button:hover { background: #45a049; }
+    button:disabled { background: #666; cursor: not-allowed; }
+    
+    input, select { 
+      width: 100%; 
+      margin: 4px 0; 
+      padding: 6px; 
+      border: 1px solid #555; 
+      background: #444; 
+      color: #fff; 
+      border-radius: 4px; 
+    }
+    
+    input[type="color"] {
+      height: 40px;
+      padding: 2px;
+    }
+    
+    label { 
+      display: block; 
+      margin: 8px 0 4px 0; 
+      font-size: 13px; 
+      color: #ccc;
+    }
+    
+    .status-area {
+      font-size: 11px;
+      max-height: 120px;
+      overflow-y: auto;
+      background: #1a1a1a;
+      padding: 8px;
+      border-radius: 4px;
+      border: 1px solid #444;
+    }
+    
+    .tile-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+      max-height: 100px;
+      overflow-y: auto;
+    }
+    
+    .tile-tag {
+      padding: 2px 6px;
+      background: #555;
+      border-radius: 3px;
+      font-size: 10px;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    
+    .tile-tag.selected { background: #4CAF50; }
+    .tile-tag:hover { background: #666; }
+    
+    .toolbar-group {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    
+    .toolbar-label {
+      color: #ccc;
+      font-size: 12px;
+      white-space: nowrap;
+    }
+    
+    .toolbar-input {
+      width: auto;
+      min-width: 60px;
+    }
+  </style>
+</head>
+<body>
+  <div id="sidebar">
+    <h3>dot2world ペイントツール</h3>
+    
+    <div class="tool-section">
+      <h4>描画ツール</h4>
+      <label>色</label>
+      <input type="color" id="colorPicker" value="#ff0000" />
+      <label><input type="checkbox" id="eraserMode" /> 消しゴムモード</label>
+      <label>ペンサイズ</label>
+      <input type="range" id="penSize" min="1" max="10" value="1" />
+      <span id="penSizeDisplay">1px</span>
+    </div>
+    
+    <div class="tool-section">
+      <h4>表示設定</h4>
+      <label>ズーム</label>
+      <input type="range" id="zoomSlider" min="1" max="50" value="4" />
+      <span id="zoomDisplay">4x</span>
+      <button id="resetView">表示リセット</button>
+      <label><input type="checkbox" id="showGrid" checked /> グリッド表示</label>
+    </div>
+    
+    <div class="tool-section">
+      <h4>タイル操作</h4>
+      <button id="sendTiles">変更タイル送信</button>
+      <button id="generate3D">3D生成実行</button>
+      <button id="clearSelection">選択解除</button>
+      <div class="status-area">
+        <div>変更タイル数: <span id="modifiedCount">0</span></div>
+        <div class="tile-list" id="modifiedTiles"></div>
+      </div>
+    </div>
+    
+    <div class="tool-section">
+      <h4>接続状態</h4>
+      <div class="status-area" id="connectionStatus">接続中...</div>
+    </div>
+    
+    <div class="tool-section">
+      <h4>操作ガイド</h4>
+      <div style="font-size: 11px; line-height: 1.4;">
+        <strong>基本操作:</strong><br>
+        • 左クリック: 描画<br>
+        • 右クリック+ドラッグ: 移動<br>
+        • ホイール: ズーム<br>
+        • Shift+クリック: タイル選択<br>
+        <br>
+        <strong>キーボード:</strong><br>
+        • スペース: 一時的に移動モード<br>
+        • Ctrl+Z: 元に戻す<br>
+      </div>
+    </div>
+  </div>
+  
+  <div id="canvasArea">
+    <div id="toolbar">
+      <div class="toolbar-group">
+        <span class="toolbar-label">座標:</span>
+        <span id="currentCoords">0, 0</span>
+      </div>
+      <div class="toolbar-group">
+        <span class="toolbar-label">タイル:</span>
+        <span id="currentTile">0, 0</span>
+      </div>
+      <div class="toolbar-group">
+        <span class="toolbar-label">ズーム:</span>
+        <span id="currentZoom">4x</span>
+      </div>
+    </div>
+    
+    <div id="canvasContainer">
+      <canvas id="mainCanvas"></canvas>
+      <div id="minimap">
+        <canvas id="minimapCanvas" width="196" height="196"></canvas>
+      </div>
+      <div id="coordinates">x: 0, y: 0</div>
+    </div>
+  </div>
+
+  <script>
+    // Constants
+    const CANVAS_WIDTH = 20000;
+    const CANVAS_HEIGHT = 20000;
+    const TILE_SIZE = 32;
+    const INITIAL_ZOOM = 4;
+    const MAX_DISPLAY_PIXELS = 20000000; // 2000万画素上限
+    const TILE_CACHE_SIZE = 1000; // キャッシュするタイル数
+    
+    // Canvas and context
+    const canvas = document.getElementById('mainCanvas');
+    const ctx = canvas.getContext('2d');
+    const minimapCanvas = document.getElementById('minimapCanvas');
+    const minimapCtx = minimapCanvas.getContext('2d');
+    
+    // Disable image smoothing for pixel-perfect rendering
+    ctx.imageSmoothingEnabled = false;
+    minimapCtx.imageSmoothingEnabled = false;
+    
+    // State variables
+    let zoom = INITIAL_ZOOM;
+    let offsetX = 0;
+    let offsetY = 0;
+    let isDrawing = false;
+    let isPanning = false;
+    let lastMouseX = 0;
+    let lastMouseY = 0;
+    let spacePressed = false;
+    
+    // Tiled canvas system for large image handling
+    let tileCache = new Map(); // キャッシュされたタイル画像
+    let loadingTiles = new Set(); // 読み込み中のタイル
+    let modifiedTiles = new Set();
+    let selectedTiles = new Set();
+    let canvasImageData = null; // 描画用の小さなバッファ
+    
+    // Request management for performance
+    let activeRequests = new Map(); // tile_key -> AbortController
+    let requestQueue = []; // Priority queue for tile requests
+    let currentViewport = { startTileX: 0, startTileY: 0, endTileX: 0, endTileY: 0 };
+    
+    // CPU optimization and throttling
+    let renderThrottleId = null;
+    let lastRenderTime = 0;
+    let lastPreloadTime = 0;
+    const MIN_RENDER_INTERVAL = 16; // ~60fps max
+    let processingQueue = [];
+    let isProcessingTiles = false;
+    
+    // UI elements
+    const colorPicker = document.getElementById('colorPicker');
+    const eraserMode = document.getElementById('eraserMode');
+    const penSizeSlider = document.getElementById('penSize');
+    const penSizeDisplay = document.getElementById('penSizeDisplay');
+    const zoomSlider = document.getElementById('zoomSlider');
+    const zoomDisplay = document.getElementById('zoomDisplay');
+    const showGridCheckbox = document.getElementById('showGrid');
+    const currentCoords = document.getElementById('currentCoords');
+    const currentTile = document.getElementById('currentTile');
+    const currentZoom = document.getElementById('currentZoom');
+    const modifiedCount = document.getElementById('modifiedCount');
+    const modifiedTilesDiv = document.getElementById('modifiedTiles');
+    const connectionStatus = document.getElementById('connectionStatus');
+    
+    // Initialize canvas
+    function initCanvas() {
+      // Set canvas size to viewport
+      resizeCanvas();
+      
+      // Create small buffer for drawing operations
+      const bufferSize = Math.min(4096, Math.sqrt(MAX_DISPLAY_PIXELS));
+      canvasImageData = new ImageData(bufferSize, bufferSize);
+      
+      // Initial render
+      throttledRender();
+      
+      connectionStatus.textContent = 'タイリングシステムで初期化完了';
+    }
+    
+    function resizeCanvas() {
+      const container = document.getElementById('canvasContainer');
+      canvas.width = container.clientWidth;
+      canvas.height = container.clientHeight;
+      ctx.imageSmoothingEnabled = false;
+    }
+    
+    // Create empty tile for missing areas
+    function createEmptyTile() {
+      const canvas = document.createElement('canvas');
+      canvas.width = TILE_SIZE;
+      canvas.height = TILE_SIZE;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = 'rgba(0, 0, 0, 0)';
+      ctx.fillRect(0, 0, TILE_SIZE, TILE_SIZE);
+      return canvas;
+    }
+
+    // Cancel requests outside current viewport
+    function cancelOutOfViewportRequests(newStartTileX, newStartTileY, newEndTileX, newEndTileY) {
+      activeRequests.forEach((controller, tileKey) => {
+        const [tx, ty] = tileKey.split(',').map(Number);
+        if (tx < newStartTileX || tx >= newEndTileX || ty < newStartTileY || ty >= newEndTileY) {
+          controller.abort();
+          activeRequests.delete(tileKey);
+          loadingTiles.delete(tileKey);
+        }
+      });
+    }
+
+    // Throttled render function for CPU optimization
+    function throttledRender() {
+      const now = performance.now();
+      if (renderThrottleId) {
+        cancelAnimationFrame(renderThrottleId);
+      }
+      
+      if (now - lastRenderTime >= MIN_RENDER_INTERVAL) {
+        lastRenderTime = now;
+        render();
+      } else {
+        renderThrottleId = requestAnimationFrame(() => {
+          lastRenderTime = performance.now();
+          render();
+        });
+      }
+    }
+
+    // CPU-optimized tile processing queue
+    async function processTileQueue() {
+      if (isProcessingTiles || processingQueue.length === 0) return;
+      
+      isProcessingTiles = true;
+      const batchSize = 2; // Process 2 tiles at a time to avoid blocking
+      
+      while (processingQueue.length > 0 && batchSize > 0) {
+        const tileTask = processingQueue.shift();
+        if (tileTask) {
+          await tileTask();
+          // Yield control to browser between tiles
+          await new Promise(resolve => setTimeout(resolve, 0));
+        }
+      }
+      
+      isProcessingTiles = false;
+      
+      // Continue processing if more tiles were added
+      if (processingQueue.length > 0) {
+        setTimeout(processTileQueue, 10);
+      }
+    }
+
+    // Priority-based tile loading with CPU optimization
+    async function loadTileImage(tileX, tileY, priority = 0) {
+      const key = `${tileX},${tileY}`;
+      
+      // Return cached tile immediately
+      if (tileCache.has(key)) {
+        return tileCache.get(key);
+      }
+      
+      // Skip if already loading
+      if (loadingTiles.has(key)) {
+        return null;
+      }
+      
+      loadingTiles.add(key);
+      
+      // Create abort controller for this request
+      const controller = new AbortController();
+      activeRequests.set(key, controller);
+      
+      try {
+        // Determine base URL
+        let baseUrl = '';
+        if (location.protocol === 'file:') {
+          baseUrl = 'http://127.0.0.1:8001';
+        }
+        
+        const tileUrl = `${baseUrl}/api/tile/${tileX}/${tileY}?t=${Date.now()}`;
+        const response = await fetch(tileUrl, { 
+          signal: controller.signal,
+          mode: 'cors',
+          cache: 'no-cache',
+          credentials: 'same-origin',
+          headers: {
+            'Accept': 'image/png,image/webp,image/apng,*/*',
+          },
+          priority: priority > 0 ? 'high' : 'low'
+        });
+        
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const blob = await response.blob();
+        
+        // Check if request was cancelled
+        if (controller.signal.aborted) {
+          return null;
+        }
+        
+        // Create canvas and draw image
+        const canvas = document.createElement('canvas');
+        canvas.width = TILE_SIZE;
+        canvas.height = TILE_SIZE;
+        const ctx = canvas.getContext('2d');
+        
+        // Create image and set up loading
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        
+        // Create a promise to handle image loading
+        const imgLoadPromise = new Promise((resolve, reject) => {
+          img.onload = () => {
+            try {
+              // Clear any previous content
+              ctx.clearRect(0, 0, TILE_SIZE, TILE_SIZE);
+              // Draw the image
+              ctx.drawImage(img, 0, 0, TILE_SIZE, TILE_SIZE);
+              resolve();
+            } catch (e) {
+              console.error('Error drawing tile:', e);
+              reject(e);
+            }
+          };
+          img.onerror = (e) => {
+            console.error('Error loading tile image:', e);
+            reject(new Error('Failed to load tile image'));
+          };
+          
+          // Set source after setting up event handlers
+          try {
+            img.src = URL.createObjectURL(blob);
+          } catch (e) {
+            console.error('Error creating object URL:', e);
+            reject(e);
+          }
+        });
+        
+        // Wait for image to load and draw
+        await imgLoadPromise;
+        
+        // Store in cache
+        tileCache.set(key, canvas);
+        return canvas;
+      } catch (error) {
+        if (error.name === 'AbortError') {
+          return null; // Request was cancelled
+        }
+        console.warn(`Failed to load tile ${tileX},${tileY}:`, error);
+        
+        // Create and return an empty tile on error
+        const emptyTile = createEmptyTile();
+        tileCache.set(key, emptyTile);
+        return emptyTile;
+      } finally {
+        loadingTiles.delete(key);
+        activeRequests.delete(key);
+      }
+    }
+    
+    // Manage tile cache size
+    function manageTileCache() {
+      if (tileCache.size > TILE_CACHE_SIZE) {
+        const keys = Array.from(tileCache.keys());
+        const toRemove = keys.slice(0, keys.length - TILE_CACHE_SIZE + 100);
+        toRemove.forEach(key => tileCache.delete(key));
+      }
+    }
+    
+    // Preload adjacent tiles for smooth scrolling with throttling
+    async function preloadAdjacentTiles(centerTileX, centerTileY, radius = 1) {
+      // Only preload if we have spare request capacity
+      if (activeRequests.size >= 4) return;
+      
+      const promises = [];
+      for (let dy = -radius; dy <= radius; dy++) {
+        for (let dx = -radius; dx <= radius; dx++) {
+          const tx = centerTileX + dx;
+          const ty = centerTileY + dy;
+          const tileKey = `${tx},${ty}`;
+          
+          if (tx >= 0 && ty >= 0 && 
+              tx < Math.ceil(CANVAS_WIDTH / TILE_SIZE) && 
+              ty < Math.ceil(CANVAS_HEIGHT / TILE_SIZE) &&
+              !tileCache.has(tileKey) && 
+              !loadingTiles.has(tileKey)) {
+            promises.push(loadTileImage(tx, ty, 0)); // Low priority
+            
+            // Limit preload requests
+            if (promises.length >= 4) break;
+          }
+        }
+        if (promises.length >= 4) break;
+      }
+      
+      if (promises.length > 0) {
+        await Promise.allSettled(promises);
+        manageTileCache();
+      }
+    }
+    
+    // Optimized render with aggressive caching and request management
+    async function render() {
+      if (!canvas) return;
+      
+      // Clear canvas with a light background
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#f0f0f0';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      
+      // Calculate visible area in world coordinates
+      const viewWidth = canvas.width / zoom;
+      const viewHeight = canvas.height / zoom;
+      const startX = Math.max(0, offsetX);
+      const startY = Math.max(0, offsetY);
+      const endX = Math.min(CANVAS_WIDTH, offsetX + viewWidth);
+      const endY = Math.min(CANVAS_HEIGHT, offsetY + viewHeight);
+      
+      // Calculate tile range
+      const startTileX = Math.max(0, Math.floor(startX / TILE_SIZE));
+      const startTileY = Math.max(0, Math.floor(startY / TILE_SIZE));
+      const endTileX = Math.min(
+        Math.ceil(endX / TILE_SIZE),
+        Math.ceil(CANVAS_WIDTH / TILE_SIZE)
+      );
+      const endTileY = Math.min(
+        Math.ceil(endY / TILE_SIZE),
+        Math.ceil(CANVAS_HEIGHT / TILE_SIZE)
+      );
+      
+      // Cancel requests outside viewport if viewport changed significantly
+      if (Math.abs((currentViewport.startTileX || 0) - startTileX) > 2 || 
+          Math.abs((currentViewport.startTileY || 0) - startTileY) > 2) {
+        cancelOutOfViewportRequests(startTileX - 1, startTileY - 1, endTileX + 1, endTileY + 1);
+      }
+      
+      currentViewport = { startTileX, startTileY, endTileX, endTileY };
+      
+      // Set up transform for zoom and pan
+      ctx.save();
+      ctx.scale(zoom, zoom);
+      ctx.translate(-offsetX, -offsetY);
+      
+      // Draw tiles that are already loaded
+      const tilesToLoad = [];
+      const centerTileX = Math.floor((startTileX + endTileX) / 2);
+      const centerTileY = Math.floor((startTileY + endTileY) / 2);
+      
+      for (let ty = startTileY; ty < endTileY; ty++) {
+        for (let tx = startTileX; tx < endTileX; tx++) {
+          const tileKey = `${tx},${ty}`;
+          const tileX = tx * TILE_SIZE;
+          const tileY = ty * TILE_SIZE;
+          
+          // Skip if completely outside canvas
+          if (tileX + TILE_SIZE < startX || tileX > endX ||
+              tileY + TILE_SIZE < startY || tileY > endY) {
+            continue;
+          }
+          
+          if (tileCache.has(tileKey)) {
+            const tileImg = tileCache.get(tileKey);
+            if (tileImg) {
+              ctx.drawImage(tileImg, tileX, tileY, TILE_SIZE, TILE_SIZE);
+            }
+          } else if (!loadingTiles.has(tileKey)) {
+            const distance = Math.abs(tx - centerTileX) + Math.abs(ty - centerTileY);
+            tilesToLoad.push({ tx, ty, distance, key: tileKey });
+          } else {
+            // Draw loading placeholder
+            ctx.fillStyle = '#e0e0e0';
+            ctx.fillRect(tileX, tileY, TILE_SIZE, TILE_SIZE);
+          }
+        }
+      }
+      
+      // Load tiles in priority order (center first)
+      tilesToLoad.sort((a, b) => a.distance - b.distance);
+      const maxConcurrentRequests = 4; // Reduced concurrency for better performance
+      const activeCount = activeRequests.size;
+      
+      for (let i = 0; i < Math.min(tilesToLoad.length, maxConcurrentRequests - activeCount); i++) {
+        const tile = tilesToLoad[i];
+        const priority = tile.distance === 0 ? 2 : (tile.distance < 2 ? 1 : 0);
+        
+        loadTileImage(tile.tx, tile.ty, priority).then(tileCanvas => {
+          if (tileCanvas) {
+            // Only re-render if tile is still in viewport
+            if (tile.tx >= currentViewport.startTileX && tile.tx < currentViewport.endTileX &&
+                tile.ty >= currentViewport.startTileY && tile.ty < currentViewport.endTileY) {
+              throttledRender();
+            }
+          }
+        }).catch(error => {
+          console.error(`Error loading tile ${tile.tx},${tile.ty}:`, error);
+        });
+      }
+      
+      // Draw modified tiles overlay
+      if (modifiedTiles.size > 0) {
+        ctx.strokeStyle = 'rgba(255, 0, 0, 0.5)';
+        ctx.lineWidth = 2 / zoom;
+        
+        modifiedTiles.forEach(tileKey => {
+          const [tx, ty] = tileKey.split(',').map(Number);
+          if (tx >= startTileX && tx < endTileX && ty >= startTileY && ty < endTileY) {
+            const x = tx * TILE_SIZE;
+            const y = ty * TILE_SIZE;
+            ctx.strokeRect(x, y, TILE_SIZE, TILE_SIZE);
+          }
+        });
+      }
+      
+      // Draw grid if enabled
+      if (showGridCheckbox && showGridCheckbox.checked && zoom >= 2) {
+        drawGrid();
+      }
+      
+      ctx.restore();
+      
+      // Update minimap
+      updateMinimap();
+      
+      // Preload adjacent tiles for smooth scrolling (low priority)
+      if (Date.now() - lastPreloadTime > 100) { // Throttle preloading
+        lastPreloadTime = Date.now();
+        setTimeout(() => {
+          preloadAdjacentTiles(centerTileX, centerTileY, 1);
+        }, 0);
+      }
+    }
+    
+    function drawGrid() {
+      const ctx = canvas.getContext('2d');
+      ctx.save();
+      
+      // Set up transform for grid drawing
+      ctx.scale(zoom, zoom);
+      ctx.translate(-offsetX, -offsetY);
+      
+      // Calculate visible grid area
+      const startTileX = Math.max(0, Math.floor(offsetX / TILE_SIZE));
+      const startTileY = Math.max(0, Math.floor(offsetY / TILE_SIZE));
+      const endTileX = Math.min(
+        Math.ceil((offsetX + canvas.width / zoom) / TILE_SIZE),
+        Math.ceil(CANVAS_WIDTH / TILE_SIZE)
+      );
+      const endTileY = Math.min(
+        Math.ceil((offsetY + canvas.height / zoom) / TILE_SIZE),
+        Math.ceil(CANVAS_HEIGHT / TILE_SIZE)
+      );
+      
+      // Draw grid lines
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+      ctx.lineWidth = 1 / zoom; // Scale line width with zoom
+      
+      // Draw vertical grid lines
+      for (let x = startTileX; x <= endTileX; x++) {
+        const posX = x * TILE_SIZE;
+        ctx.beginPath();
+        ctx.moveTo(posX, startTileY * TILE_SIZE);
+        ctx.lineTo(posX, endTileY * TILE_SIZE);
+        ctx.stroke();
+      }
+      
+      // Draw horizontal grid lines
+      for (let y = startTileY; y <= endTileY; y++) {
+        const posY = y * TILE_SIZE;
+        ctx.beginPath();
+        ctx.moveTo(startTileX * TILE_SIZE, posY);
+        ctx.lineTo(endTileX * TILE_SIZE, posY);
+        ctx.stroke();
+      }
+      
+      // Restore context
+      ctx.restore();
+    }
+    
+    function drawTileOverlays() {
+      const ctx = canvas.getContext('2d');
+      ctx.save();
+      
+      // Set up transform for overlay drawing
+      ctx.scale(zoom, zoom);
+      ctx.translate(-offsetX, -offsetY);
+      
+      // Get visible tile range
+      const startTileX = Math.max(0, Math.floor(offsetX / TILE_SIZE));
+      const startTileY = Math.max(0, Math.floor(offsetY / TILE_SIZE));
+      const endTileX = Math.min(
+        Math.ceil((offsetX + canvas.width / zoom) / TILE_SIZE),
+        Math.ceil(CANVAS_WIDTH / TILE_SIZE)
+      );
+      const endTileY = Math.min(
+        Math.ceil((offsetY + canvas.height / zoom) / TILE_SIZE),
+        Math.ceil(CANVAS_HEIGHT / TILE_SIZE)
+      );
+      
+      // Draw modified tiles (red borders)
+      ctx.strokeStyle = 'rgba(255, 100, 100, 0.8)';
+      ctx.lineWidth = 2 / zoom;
+      modifiedTiles.forEach(tileKey => {
+        const [tx, ty] = tileKey.split(',').map(Number);
+        // Only draw if tile is in viewport
+        if (tx >= startTileX && tx < endTileX && ty >= startTileY && ty < endTileY) {
+          ctx.strokeRect(tx * TILE_SIZE, ty * TILE_SIZE, TILE_SIZE, TILE_SIZE);
+        }
+      });
+      
+      // Draw selected tiles (green borders)
+      ctx.strokeStyle = 'rgba(100, 255, 100, 0.8)';
+      ctx.lineWidth = 3 / zoom;
+      selectedTiles.forEach(tileKey => {
+        const [tx, ty] = tileKey.split(',').map(Number);
+        // Only draw if tile is in viewport
+        if (tx >= startTileX && tx < endTileX && ty >= startTileY && ty < endTileY) {
+          ctx.strokeRect(tx * TILE_SIZE, ty * TILE_SIZE, TILE_SIZE, TILE_SIZE);
+        }
+      });
+      
+      ctx.restore();
+    }
+    
+    function updateMinimap() {
+      // Skip minimap update if not visible or canvas not ready
+      if (!minimapCanvas || !canvas) return;
+      
+      // Clear minimap with a dark background
+      minimapCtx.fillStyle = '#1a1a1a';
+      minimapCtx.fillRect(0, 0, 196, 196);
+      
+      // Calculate scaling factors
+      const scaleX = 196 / CANVAS_WIDTH;
+      const scaleY = 196 / CANVAS_HEIGHT;
+      
+      // Draw a subtle grid on the minimap
+      minimapCtx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+      minimapCtx.lineWidth = 0.5;
+      
+      // Draw vertical grid lines
+      for (let x = 0; x <= CANVAS_WIDTH; x += TILE_SIZE * 10) {
+        const posX = x * scaleX;
+        minimapCtx.beginPath();
+        minimapCtx.moveTo(posX, 0);
+        minimapCtx.lineTo(posX, 196);
+        minimapCtx.stroke();
+      }
+      
+      // Draw horizontal grid lines
+      for (let y = 0; y <= CANVAS_HEIGHT; y += TILE_SIZE * 10) {
+        const posY = y * scaleY;
+        minimapCtx.beginPath();
+        minimapCtx.moveTo(0, posY);
+        minimapCtx.lineTo(196, posY);
+        minimapCtx.stroke();
+      }
+      
+      // Draw modified tiles on minimap (more subtle)
+      if (modifiedTiles.size > 0) {
+        minimapCtx.fillStyle = 'rgba(255, 100, 100, 0.6)';
+        modifiedTiles.forEach(tileKey => {
+          const [tx, ty] = tileKey.split(',').map(Number);
+          const x = tx * TILE_SIZE * scaleX;
+          const y = ty * TILE_SIZE * scaleY;
+          const w = TILE_SIZE * scaleX;
+          const h = TILE_SIZE * scaleY;
+          minimapCtx.fillRect(x, y, Math.max(1, w), Math.max(1, h));
+        });
+      }
+      
+      // Draw viewport rectangle with a subtle border
+      const viewX = Math.max(0, Math.min(offsetX * scaleX, 196));
+      const viewY = Math.max(0, Math.min(offsetY * scaleY, 196));
+      const viewW = Math.min((canvas.width / zoom) * scaleX, 196 - viewX);
+      const viewH = Math.min((canvas.height / zoom) * scaleY, 196 - viewY);
+      
+      // Draw viewport background (semi-transparent)
+      minimapCtx.fillStyle = 'rgba(100, 200, 100, 0.2)';
+      minimapCtx.fillRect(viewX, viewY, viewW, viewH);
+      
+      // Draw viewport border
+      minimapCtx.strokeStyle = '#4CAF50';
+      minimapCtx.lineWidth = 1.5;
+      minimapCtx.strokeRect(viewX, viewY, viewW, viewH);
+    }
+    
+    // Drawing functions
+    function drawBrush(x, y, size, color) {
+      // Convert coordinates to integers once
+      const centerX = Math.floor(x);
+      const centerY = Math.floor(y);
+      const halfSize = Math.max(1, Math.floor(size / 2));
+      const radiusSquared = halfSize * halfSize;
+      
+      // Calculate the bounding box of the brush
+      const minX = Math.max(0, centerX - halfSize);
+      const maxX = Math.min(CANVAS_WIDTH - 1, centerX + halfSize);
+      const minY = Math.max(0, centerY - halfSize);
+      const maxY = Math.min(CANVAS_HEIGHT - 1, centerY + halfSize);
+      
+      // Set up drawing context once
+      const isEraser = eraserMode.checked;
+      const fillStyle = isEraser ? 'rgba(0,0,0,0)' : color;
+      const compositeOp = isEraser ? 'destination-out' : 'source-over';
+      
+      // Track which tiles we've modified to avoid duplicate updates
+      const modifiedTileSet = new Set();
+      
+      // Optimize by processing one tile at a time
+      const startTileX = Math.floor(minX / TILE_SIZE);
+      const endTileX = Math.floor(maxX / TILE_SIZE);
+      const startTileY = Math.floor(minY / TILE_SIZE);
+      const endTileY = Math.floor(maxY / TILE_SIZE);
+      
+      // Process each tile that intersects with the brush
+      for (let tileY = startTileY; tileY <= endTileY; tileY++) {
+        for (let tileX = startTileX; tileX <= endTileX; tileX++) {
+          const tileKey = `${tileX},${tileY}`;
+          
+          // Get or create tile canvas
+          let tileCanvas = tileCache.get(tileKey);
+          if (!tileCanvas) {
+            tileCanvas = createEmptyTile();
+            tileCache.set(tileKey, tileCanvas);
+          }
+          
+          const tileCtx = tileCanvas.getContext('2d', { willReadFrequently: true });
+          tileCtx.globalCompositeOperation = compositeOp;
+          tileCtx.fillStyle = fillStyle;
+          
+          // Calculate the area of this tile that intersects with the brush
+          const tileLeft = tileX * TILE_SIZE;
+          const tileTop = tileY * TILE_SIZE;
+          const tileRight = tileLeft + TILE_SIZE;
+          const tileBottom = tileTop + TILE_SIZE;
+          
+          const brushMinX = Math.max(minX, tileLeft);
+          const brushMaxX = Math.min(maxX, tileRight - 1);
+          const brushMinY = Math.max(minY, tileTop);
+          const brushMaxY = Math.min(maxY, tileBottom - 1);
+          
+          // Draw each pixel in the intersection
+          for (let py = brushMinY; py <= brushMaxY; py++) {
+            for (let px = brushMinX; px <= brushMaxX; px++) {
+              const dx = px - centerX;
+              const dy = py - centerY;
+              if (dx * dx + dy * dy <= radiusSquared) {
+                const tilePixelX = px % TILE_SIZE;
+                const tilePixelY = py % TILE_SIZE;
+                tileCtx.fillRect(tilePixelX, tilePixelY, 1, 1);
+                modifiedTileSet.add(tileKey);
+              }
+            }
+          }
+        }
+      }
+      
+      // Update modified tiles set
+      modifiedTileSet.forEach(tileKey => {
+        modifiedTiles.add(tileKey);
+      });
+    }
+    
+    // Utility functions
+    function hexToRgb(hex) {
+      const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+      return result ? {
+        r: parseInt(result[1], 16),
+        g: parseInt(result[2], 16),
+        b: parseInt(result[3], 16)
+      } : null;
+    }
+    
+    function screenToCanvas(screenX, screenY) {
+      const rect = canvas.getBoundingClientRect();
+      const x = (screenX - rect.left) / zoom + offsetX;
+      const y = (screenY - rect.top) / zoom + offsetY;
+      return { x: Math.floor(x), y: Math.floor(y) };
+    }
+    
+    function getTileCoords(x, y) {
+      return {
+        tx: Math.floor(x / TILE_SIZE),
+        ty: Math.floor(y / TILE_SIZE)
+      };
+    }
+    
+    // Event handlers
+    canvas.addEventListener('mousedown', (e) => {
+      const pos = screenToCanvas(e.clientX, e.clientY);
+      lastMouseX = e.clientX;
+      lastMouseY = e.clientY;
+      
+      if (e.button === 0) { // Left click
+        if (e.shiftKey) {
+          // Tile selection
+          const tile = getTileCoords(pos.x, pos.y);
+          const tileKey = `${tile.tx},${tile.ty}`;
+          if (selectedTiles.has(tileKey)) {
+            selectedTiles.delete(tileKey);
+          } else {
+            selectedTiles.add(tileKey);
+          }
+          throttledRender();
+        } else if (spacePressed || e.button === 2) {
+          // Panning
+          isPanning = true;
+        } else {
+          // Drawing
+          isDrawing = true;
+          const penSize = parseInt(penSizeSlider.value);
+          drawBrush(pos.x, pos.y, penSize, colorPicker.value);
+          throttledRender();
+        }
+      } else if (e.button === 2) { // Right click
+        isPanning = true;
+      }
+      
+      e.preventDefault();
+    });
+    
+    canvas.addEventListener('mousemove', (e) => {
+      const pos = screenToCanvas(e.clientX, e.clientY);
+      const tile = getTileCoords(pos.x, pos.y);
+      
+      // Update UI
+      currentCoords.textContent = `${pos.x}, ${pos.y}`;
+      currentTile.textContent = `${tile.tx}, ${tile.ty}`;
+      
+      if (isPanning) {
+        const dx = (e.clientX - lastMouseX) / zoom;
+        const dy = (e.clientY - lastMouseY) / zoom;
+        offsetX = Math.max(0, Math.min(CANVAS_WIDTH - canvas.width / zoom, offsetX - dx));
+        offsetY = Math.max(0, Math.min(CANVAS_HEIGHT - canvas.height / zoom, offsetY - dy));
+        throttledRender();
+      } else if (isDrawing) {
+        const penSize = parseInt(penSizeSlider.value);
+        drawBrush(pos.x, pos.y, penSize, colorPicker.value);
+        throttledRender();
+      }
+      
+      lastMouseX = e.clientX;
+      lastMouseY = e.clientY;
+    });
+    
+    canvas.addEventListener('mouseup', () => {
+      isDrawing = false;
+      isPanning = false;
+      updateModifiedTilesList();
+    });
+    
+    canvas.addEventListener('wheel', (e) => {
+      e.preventDefault();
+      const delta = e.deltaY > 0 ? 0.9 : 1.1;
+      const newZoom = Math.max(0.5, Math.min(50, zoom * delta));
+      
+      // Zoom towards mouse position
+      const rect = canvas.getBoundingClientRect();
+      const mouseX = e.clientX - rect.left;
+      const mouseY = e.clientY - rect.top;
+      
+      const worldX = mouseX / zoom + offsetX;
+      const worldY = mouseY / zoom + offsetY;
+      
+      zoom = newZoom;
+      
+      offsetX = worldX - mouseX / zoom;
+      offsetY = worldY - mouseY / zoom;
+      
+      // Clamp offset
+      offsetX = Math.max(0, Math.min(CANVAS_WIDTH - canvas.width / zoom, offsetX));
+      offsetY = Math.max(0, Math.min(CANVAS_HEIGHT - canvas.height / zoom, offsetY));
+      
+      zoomSlider.value = zoom;
+      zoomDisplay.textContent = zoom.toFixed(1) + 'x';
+      currentZoom.textContent = zoom.toFixed(1) + 'x';
+      
+      throttledRender();
+    });
+    
+    // Prevent context menu
+    canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+    
+    // Keyboard events
+    document.addEventListener('keydown', (e) => {
+      if (e.code === 'Space') {
+        spacePressed = true;
+        canvas.style.cursor = 'grab';
+        e.preventDefault();
+      }
+    });
+    
+    document.addEventListener('keyup', (e) => {
+      if (e.code === 'Space') {
+        spacePressed = false;
+        canvas.style.cursor = 'crosshair';
+      }
+    });
+    
+    // UI event handlers
+    penSizeSlider.addEventListener('input', () => {
+      penSizeDisplay.textContent = penSizeSlider.value + 'px';
+    });
+    
+    zoomSlider.addEventListener('input', () => {
+      zoom = parseFloat(zoomSlider.value);
+      zoomDisplay.textContent = zoom.toFixed(1) + 'x';
+      currentZoom.textContent = zoom.toFixed(1) + 'x';
+      throttledRender();
+    });
+    
+    showGridCheckbox.addEventListener('change', throttledRender);
+    
+    document.getElementById('resetView').addEventListener('click', () => {
+      zoom = INITIAL_ZOOM;
+      offsetX = 0;
+      offsetY = 0;
+      zoomSlider.value = zoom;
+      zoomDisplay.textContent = zoom + 'x';
+      currentZoom.textContent = zoom + 'x';
+      throttledRender();
+    });
+    
+    document.getElementById('clearSelection').addEventListener('click', () => {
+      selectedTiles.clear();
+      throttledRender();
+    });
+    
+    // Minimap click handler
+    minimapCanvas.addEventListener('click', (e) => {
+      const rect = minimapCanvas.getBoundingClientRect();
+      const x = (e.clientX - rect.left) / 196 * CANVAS_WIDTH;
+      const y = (e.clientY - rect.top) / 196 * CANVAS_HEIGHT;
+      
+      offsetX = Math.max(0, Math.min(CANVAS_WIDTH - canvas.width / zoom, x - canvas.width / zoom / 2));
+      offsetY = Math.max(0, Math.min(CANVAS_HEIGHT - canvas.height / zoom, y - canvas.height / zoom / 2));
+      
+      throttledRender();
+    });
+    
+    function updateModifiedTilesList() {
+      modifiedCount.textContent = modifiedTiles.size;
+      modifiedTilesDiv.innerHTML = '';
+      
+      modifiedTiles.forEach(tileKey => {
+        const span = document.createElement('span');
+        span.className = 'tile-tag';
+        span.textContent = tileKey;
+        span.onclick = () => {
+          if (selectedTiles.has(tileKey)) {
+            selectedTiles.delete(tileKey);
+          } else {
+            selectedTiles.add(tileKey);
+          }
+          span.classList.toggle('selected');
+          throttledRender();
+        };
+        modifiedTilesDiv.appendChild(span);
+      });
+    }
+    
+    // Tile operations
+    document.getElementById('sendTiles').addEventListener('click', async () => {
+      if (modifiedTiles.size === 0) {
+        connectionStatus.textContent = '送信するタイルがありません';
+        return;
+      }
+      
+      connectionStatus.textContent = 'タイルを送信中...';
+      
+      try {
+        let baseUrl = '';
+        if (location.protocol === 'file:') {
+          baseUrl = 'http://127.0.0.1:8001';
+        }
+        
+        for (const tileKey of modifiedTiles) {
+          const [tx, ty] = tileKey.split(',').map(Number);
+          const tileData = extractTileData(tx, ty);
+          
+          const response = await fetch(baseUrl + '/api/paint', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              tile_x: tx,
+              tile_y: ty,
+              pixels: tileData,
+              tile_size: TILE_SIZE,
+              user_id: 'user'
+            })
+          });
+          
+          if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+          }
+        }
+        
+        connectionStatus.textContent = `${modifiedTiles.size}個のタイルを送信しました`;
+      } catch (error) {
+        connectionStatus.textContent = '送信エラー: ' + error.message;
+      }
+    });
+    
+    document.getElementById('generate3D').addEventListener('click', async () => {
+      connectionStatus.textContent = '3D生成を開始中...';
+      
+      try {
+        let baseUrl = '';
+        if (location.protocol === 'file:') {
+          baseUrl = 'http://127.0.0.1:8001';
+        }
+        
+        const response = await fetch(baseUrl + '/api/generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ tiles: null })
+        });
+        
+        if (response.ok) {
+          const result = await response.json();
+          connectionStatus.textContent = `3D生成ジョブ開始: ${result.job_id}`;
+        } else {
+          throw new Error(`HTTP ${response.status}`);
+        }
+      } catch (error) {
+        connectionStatus.textContent = '3D生成エラー: ' + error.message;
+      }
+    });
+    
+    function extractTileData(tx, ty) {
+      const pixels = [];
+      const tileKey = `${tx},${ty}`;
+      
+      // Get tile from cache if available
+      if (tileCache.has(tileKey)) {
+        const tileCanvas = tileCache.get(tileKey);
+        const tempCtx = tileCanvas.getContext('2d');
+        const imageData = tempCtx.getImageData(0, 0, TILE_SIZE, TILE_SIZE);
+        
+        for (let i = 0; i < imageData.data.length; i += 4) {
+          pixels.push([
+            imageData.data[i],     // R
+            imageData.data[i + 1], // G
+            imageData.data[i + 2], // B
+            imageData.data[i + 3]  // A
+          ]);
+        }
+      } else {
+        // Fallback: create empty transparent pixels
+        for (let i = 0; i < TILE_SIZE * TILE_SIZE; i++) {
+          pixels.push([0, 0, 0, 0]);
+        }
+      }
+      
+      return pixels;
+    }
+    
+    // WebSocket connection for real-time updates
+    let ws = null;
+    
+    function connectWS() {
+      let baseUrl = '';
+      if (location.protocol === 'file:') {
+        baseUrl = 'ws://127.0.0.1:8001';
+      } else {
+        baseUrl = `ws://${location.host}`;
+      }
+      
+      ws = new WebSocket(`${baseUrl}/ws`);
+      
+      ws.onopen = () => {
+        connectionStatus.textContent = 'WebSocket接続完了';
+        connectionStatus.style.color = '#4CAF50';
+      };
+      
+      ws.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+        if (data.type === 'job_progress') {
+          connectionStatus.innerHTML = `<div style="color: #4CAF50;">3D生成中: ${data.stage}</div><div>${data.progress || ''}</div>`;
+        } else if (data.type === 'job_done') {
+          connectionStatus.innerHTML = `<div style="color: #4CAF50;">3D生成完了: ${data.stage}</div>`;
+          setTimeout(() => {
+            connectionStatus.textContent = 'WebSocket接続完了';
+          }, 3000);
+        } else if (data.type === 'tile_updated') {
+          // Handle collaborative editing - update tile from other users
+          handleRemoteTileUpdate(data);
+        }
+      };
+      
+      ws.onclose = () => {
+        connectionStatus.textContent = 'WebSocket切断 - 再接続中...';
+        connectionStatus.style.color = '#ff6b6b';
+        setTimeout(connectWS, 2000);
+      };
+      
+      ws.onerror = (error) => {
+        console.error('WebSocket error:', error);
+        connectionStatus.textContent = 'WebSocket接続エラー';
+        connectionStatus.style.color = '#ff6b6b';
+      };
+    }
+    
+    // Handle tile updates from other users
+    function handleRemoteTileUpdate(data) {
+      const key = `${data.tile_x},${data.tile_y}`;
+      
+      // Create tile canvas from pixel data
+      const tileCanvas = document.createElement('canvas');
+      tileCanvas.width = TILE_SIZE;
+      tileCanvas.height = TILE_SIZE;
+      const tileCtx = tileCanvas.getContext('2d');
+      
+      const imageData = new ImageData(TILE_SIZE, TILE_SIZE);
+      for (let i = 0; i < data.pixels.length; i++) {
+        const pixel = data.pixels[i];
+        imageData.data[i * 4] = pixel[0];     // R
+        imageData.data[i * 4 + 1] = pixel[1]; // G
+        imageData.data[i * 4 + 2] = pixel[2]; // B
+        imageData.data[i * 4 + 3] = pixel[3]; // A
+      }
+      
+      tileCtx.putImageData(imageData, 0, 0);
+      
+      // Update cache and mark as modified
+      tileCache.set(key, tileCanvas);
+      modifiedTiles.add(key);
+      
+      // Update UI
+      updateModifiedTilesDisplay();
+      
+      // Re-render to show changes
+      throttledRender();
+    }
+    
+    // Window resize handler
+    window.addEventListener('resize', () => {
+      resizeCanvas();
+      throttledRender();
+    });
+    
+    function updateModifiedTilesDisplay() {
+      modifiedCount.textContent = modifiedTiles.size;
+      modifiedTilesDiv.innerHTML = '';
+      
+      modifiedTiles.forEach(tileKey => {
+        const span = document.createElement('span');
+        span.className = 'tile-tag';
+        span.textContent = tileKey;
+        span.onclick = () => {
+          if (selectedTiles.has(tileKey)) {
+            selectedTiles.delete(tileKey);
+          } else {
+            selectedTiles.add(tileKey);
+          }
+          span.classList.toggle('selected');
+          throttledRender();
+        };
+        modifiedTilesDiv.appendChild(span);
+      });
+    }
+
+    // Initialize
+    initCanvas();
+    connectWS();
+  </script>
+</body>
+</html>

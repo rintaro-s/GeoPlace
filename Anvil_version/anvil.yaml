@@ -1,0 +1,22 @@
+allow_embedding: false
+package_name: GeoPlace
+name: GeoPlace
+startup_form: PaintForm
+renamed_forms: {}
+runtime_options:
+  version: 2
+  client_version: '3'
+  server_version: python3-sandbox
+  server_spec: {base: python-3.10}
+metadata: {title: GeoPlace - Collaborative 2D to 3D World Builder, description: 'A collaborative canvas application that converts 2D drawings into 3D objects using AI pipeline (VLM + Stable Diffusion + TripoSR)', logo_img: 'asset:logo.png'}
+startup: {type: form, module: PaintForm}
+db_schema: {}
+services:
+- source: /runtime/services/anvil/users.yml
+  client_config: {allow_signup: true, allow_remember_me: true, remember_me_days: 30}
+  server_config: {user_table: users}
+- source: /runtime/services/anvil/email.yml
+  client_config: {}
+  server_config: {}
+dependencies: []
+secrets: {}

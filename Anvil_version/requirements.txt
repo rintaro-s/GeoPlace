@@ -1,0 +1,11 @@
+anvil-uplink
+Pillow>=9.0.0
+requests>=2.28.0
+numpy>=1.21.0
+pathlib
+base64
+json
+threading
+queue
+time
+os
