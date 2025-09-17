@@ -18,5 +18,6 @@ REFINE_DELAY_SEC: 5
 TRIPOSR_DIR: "E:\\GITS\\TripoSR-main"
 TRIPOSR_PY: "run.py"
 TRIPOSR_BAKE_TEXTURE: true
+TRIPOSR_OUTPUT_FORMAT: "obj"
 # Stable Diffusion のモデル ID (diffusers)
 SD_MODEL_ID: "runwayml/stable-diffusion-v1-5"

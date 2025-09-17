@@ -60,10 +60,12 @@ def generate_glb_from_image(image_bytes: bytes, out_path: Path, quality: str = '
         # Use the same Python interpreter that's running this process to ensure
         # external tool runs in the same virtualenv (avoids ModuleNotFoundError
         # when dependencies are installed in the server venv).
+        # allow selecting output format via settings (e.g. 'glb' or 'obj')
+        fmt = getattr(settings, 'TRIPOSR_OUTPUT_FORMAT', 'glb')
         cmd = [
             sys.executable, str(triposr_py), str(inp),
             '--output-dir', str(outdir),
-            '--model-save-format', 'glb'
+            '--model-save-format', fmt
         ]
         # optionally pass bake-texture
         bake = getattr(settings, 'TRIPOSR_BAKE_TEXTURE', True)
@@ -83,15 +85,56 @@ def generate_glb_from_image(image_bytes: bytes, out_path: Path, quality: str = '
                 with open(logpath, 'w', encoding='utf-8') as lf:
                     lf.write(res.stdout or '')
 
-                # Fall back: TripoSR failed (missing deps). Create a minimal placeholder GLB
-                placeholder = out_path.parent / (out_path.stem + '_fallback.glb')
-                with open(placeholder, 'wb') as f:
-                    f.write(b'GLB_FALLBACK_PLACEHOLDER\n')
-                    f.write(b'PROMPT_IMAGE_PNG:\n')
+                # Fall back: TripoSR failed (missing deps).
+                # Create a minimal placeholder in the requested output format.
+                if fmt == 'obj':
+                    # Create a simple textured quad OBJ as a usable fallback.
+                    obj_name = out_path.stem + '_fallback.obj'
+                    obj_path = out_path.parent / obj_name
+                    mtl_name = out_path.stem + '_fallback.mtl'
+                    mtl_path = out_path.parent / mtl_name
+                    tex_name = out_path.stem + '_fallback.png'
+                    tex_path = out_path.parent / tex_name
+                    # write texture (copy input PNG)
                     with open(inp, 'rb') as ib:
-                        f.write(ib.read())
-                shutil.move(str(placeholder), str(out_path))
-                return out_path
+                        tex_bytes = ib.read()
+                    tex_path.write_bytes(tex_bytes)
+                    # write MTL referencing the texture
+                    with open(mtl_path, 'w', encoding='utf-8') as mf:
+                        mf.write(f"newmtl fallback\nmap_Kd {tex_name}\n")
+                    # write OBJ: a single quad with uv coords
+                    with open(obj_path, 'w', encoding='utf-8') as of:
+                        of.write(f"mtllib {mtl_name}\n")
+                        of.write("o fallback_quad\n")
+                        # vertices
+                        of.write("v -0.5 -0.5 0.0\n")
+                        of.write("v 0.5 -0.5 0.0\n")
+                        of.write("v 0.5 0.5 0.0\n")
+                        of.write("v -0.5 0.5 0.0\n")
+                        # uvs
+                        of.write("vt 0 0\n")
+                        of.write("vt 1 0\n")
+                        of.write("vt 1 1\n")
+                        of.write("vt 0 1\n")
+                        of.write("usemtl fallback\n")
+                        of.write("s off\n")
+                        of.write("f 1/1 2/2 3/3 4/4\n")
+                    # move to expected out_path (with .obj extension)
+                    final_obj = out_path.with_suffix('.obj')
+                    shutil.move(str(obj_path), str(final_obj))
+                    # ensure texture and mtl are present next to final_obj
+                    shutil.move(str(mtl_path), str(out_path.parent / mtl_name))
+                    shutil.move(str(tex_path), str(out_path.parent / tex_name))
+                    return final_obj
+                else:
+                    placeholder = out_path.parent / (out_path.stem + '_fallback.glb')
+                    with open(placeholder, 'wb') as f:
+                        f.write(b'GLB_FALLBACK_PLACEHOLDER\n')
+                        f.write(b'PROMPT_IMAGE_PNG:\n')
+                        with open(inp, 'rb') as ib:
+                            f.write(ib.read())
+                    shutil.move(str(placeholder), str(out_path))
+                    return out_path
         except FileNotFoundError as e:
             # very unlikely since we use sys.executable, but handle defensively
             logdir = settings.cache_path / 'triposr_logs'

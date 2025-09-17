@@ -289,8 +289,10 @@ def _cut_tile_image(tile_x: int, tile_y: int, tile_size: int) -> bytes:
 def _run_light_job(job_id: str, tiles: List[Tuple[int,int]], refine: bool):
     current_jobs[job_id]['status'] = 'processing'
     objects = load_objects()
+    print(f'[JOB {job_id}] started processing {len(tiles)} tiles')
     for idx,(tx,ty) in enumerate(tiles):
         try:
+            print(f'[JOB {job_id}] processing tile {tx},{ty} ({idx+1}/{len(tiles)})')
             tile_bytes = _cut_tile_image(tx,ty,settings.tile_px)
             glb_path, meta = pipeline.run_light_pipeline(tile_bytes)
             entry_id = f'tile_{tx}_{ty}'
@@ -308,10 +310,23 @@ def _run_light_job(job_id: str, tiles: List[Tuple[int,int]], refine: bool):
             objects = [o for o in objects if o['id'] != entry_id]
             objects.append(entry)
             current_jobs[job_id]['progress'] = f'{idx+1}/{len(tiles)} light generated'
+            print(f'[JOB {job_id}] generated {entry_id} -> {glb_path}')
             # use thread-safe scheduling to broadcast from worker thread
             schedule_broadcast({'type':'job_progress','job_id':job_id,'stage':'light','entry':entry})
         except Exception as e:
-            current_jobs[job_id]['progress'] = f'error: {e}'
+            # Strict behavior: log error, record in job, and abort remaining work
+            import traceback
+            tb = traceback.format_exc()
+            print(f'[JOB {job_id}] ERROR processing tile {tx},{ty}: {e}\n{tb}')
+            current_jobs[job_id]['status'] = 'error'
+            current_jobs[job_id]['progress'] = f'error on tile {tx},{ty}: {e}'
+            current_jobs[job_id]['error'] = str(e)
+            current_jobs[job_id]['error_tb'] = tb
+            # broadcast error and stop
+            schedule_broadcast({'type':'job_error','job_id':job_id,'message': str(e), 'tile': [tx,ty]})
+            save_objects(objects)
+            return
+    # all tiles processed
     save_objects(objects)
     modified_tiles.difference_update(tiles)
     current_jobs[job_id]['status'] = 'light_ready'
@@ -322,18 +337,34 @@ def _run_light_job(job_id: str, tiles: List[Tuple[int,int]], refine: bool):
         current_jobs[job_id]['status'] = 'refining'
         def _refine_job():
             objects_local = load_objects()
+            print(f'[JOB {job_id}] starting refine for {len(tiles)} tiles')
             for idx,(tx,ty) in enumerate(tiles):
-                entry_id = f'tile_{tx}_{ty}'
-                obj = next((o for o in objects_local if o['id']==entry_id), None)
-                if not obj: continue
-                glb_name = Path(obj['glb_url']).name
-                light_path = settings.glb_dir / glb_name
-                refined_path, meta = pipeline.run_refine_pipeline(light_path)
-                obj['glb_url'] = f'/assets/{settings.glb_subdir}/{refined_path.name}'
-                obj['quality'] = 'refined'
-                obj['meta_refined'] = meta
-                current_jobs[job_id]['progress'] = f'{idx+1}/{len(tiles)} refined'
-                schedule_broadcast({'type':'job_progress','job_id':job_id,'stage':'refine','entry':obj})
+                try:
+                    entry_id = f'tile_{tx}_{ty}'
+                    obj = next((o for o in objects_local if o['id']==entry_id), None)
+                    if not obj:
+                        print(f'[JOB {job_id}] refine: object {entry_id} not found; skipping')
+                        continue
+                    glb_name = Path(obj['glb_url']).name
+                    light_path = settings.glb_dir / glb_name
+                    print(f'[JOB {job_id}] refining {entry_id} from {light_path}')
+                    refined_path, meta = pipeline.run_refine_pipeline(light_path)
+                    obj['glb_url'] = f'/assets/{settings.glb_subdir}/{refined_path.name}'
+                    obj['quality'] = 'refined'
+                    obj['meta_refined'] = meta
+                    current_jobs[job_id]['progress'] = f'{idx+1}/{len(tiles)} refined'
+                    schedule_broadcast({'type':'job_progress','job_id':job_id,'stage':'refine','entry':obj})
+                except Exception as e:
+                    import traceback
+                    tb = traceback.format_exc()
+                    print(f'[JOB {job_id}] ERROR refining tile {tx},{ty}: {e}\n{tb}')
+                    current_jobs[job_id]['status'] = 'error'
+                    current_jobs[job_id]['progress'] = f'refine error on tile {tx},{ty}: {e}'
+                    current_jobs[job_id]['error'] = str(e)
+                    current_jobs[job_id]['error_tb'] = tb
+                    schedule_broadcast({'type':'job_error','job_id':job_id,'message': str(e), 'tile': [tx,ty]})
+                    save_objects(objects_local)
+                    return
             save_objects(objects_local)
             current_jobs[job_id]['status'] = 'refined_ready'
             schedule_broadcast({'type':'job_done','job_id':job_id,'stage':'refine'})

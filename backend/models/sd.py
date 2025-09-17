@@ -13,9 +13,21 @@ _DEVICE = None
 
 
 def _dummy_generate(prompt: str) -> bytes:
-    img = Image.new('RGBA', (512,512), (30,30,40,255))
+    # Create a diagnostic image (not a single solid color) so failures are easier to spot.
+    img = Image.new('RGBA', (512,512))
     d = ImageDraw.Draw(img)
-    d.text((8,8), prompt[:200], fill=(255,255,255,255))
+    # background: subtle gradient
+    for y in range(512):
+        r = int(40 + (y/511.0) * 80)
+        g = int(80 + (y/511.0) * 140)
+        b = int(60 + (y/511.0) * 50)
+        d.line([(0,y),(511,y)], fill=(r,g,b,255))
+    # overlay prompt text at top-left for debugging
+    try:
+        d.text((8,8), prompt[:200], fill=(255,255,255,255))
+    except Exception:
+        # drawing may fail on some headless PIL builds; ignore
+        pass
     bio = BytesIO()
     img.save(bio, format='PNG')
     return bio.getvalue()

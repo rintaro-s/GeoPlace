@@ -70,5 +70,134 @@
       "refined": "ce75997479da8e0c9f1239e8e04ff1e4758a1af985d2540f78585ed848132cde_refined.glb",
       "quality": "refined"
     }
+  },
+  {
+    "id": "tile_296_377",
+    "x": 947.2,
+    "y": 0,
+    "z": 1206.4,
+    "rotation": [
+      0,
+      0,
+      0
+    ],
+    "scale": 1.0,
+    "glb_url": "/assets/glb/9fd6b9fe457588d7be91a4155d0cdb4c30cfdf956559798c3dc3b410727d05e2_refined.glb",
+    "quality": "refined",
+    "meta": {
+      "hash": "9fd6b9fe457588d7be91a4155d0cdb4c30cfdf956559798c3dc3b410727d05e2",
+      "attrs": {
+        "category": "object",
+        "colors": [
+          "red",
+          "white"
+        ],
+        "size": "medium",
+        "orientation": "front",
+        "details": [
+          "placeholder"
+        ]
+      },
+      "prompt": "voxel-style object, medium, primary colors: red, white, details: placeholder, low-poly, game-friendly, 3D render, front view",
+      "quality": "light"
+    },
+    "meta_refined": {
+      "base": "9fd6b9fe457588d7be91a4155d0cdb4c30cfdf956559798c3dc3b410727d05e2_light.glb",
+      "refined": "9fd6b9fe457588d7be91a4155d0cdb4c30cfdf956559798c3dc3b410727d05e2_refined.glb",
+      "quality": "refined"
+    }
+  },
+  {
+    "id": "tile_295_381",
+    "x": 944.0,
+    "y": 0,
+    "z": 1219.2,
+    "rotation": [
+      0,
+      0,
+      0
+    ],
+    "scale": 1.0,
+    "glb_url": "/assets/glb/99920031ca2758e9b3c346d228ba948823e8e4abff78030a4bd05260e211ea5c_refined.glb",
+    "quality": "refined",
+    "meta": {
+      "hash": "99920031ca2758e9b3c346d228ba948823e8e4abff78030a4bd05260e211ea5c",
+      "attrs": {
+        "category": "object",
+        "colors": [
+          "red",
+          "white"
+        ],
+        "size": "medium",
+        "orientation": "front",
+        "details": [
+          "placeholder"
+        ]
+      },
+      "prompt": "voxel-style object, medium, primary colors: red, white, details: placeholder, low-poly, game-friendly, 3D render, front view",
+      "quality": "light"
+    },
+    "meta_refined": {
+      "base": "99920031ca2758e9b3c346d228ba948823e8e4abff78030a4bd05260e211ea5c_light.glb",
+      "refined": "99920031ca2758e9b3c346d228ba948823e8e4abff78030a4bd05260e211ea5c_refined.glb",
+      "quality": "refined"
+    }
+  },
+  {
+    "id": "tile_7_8",
+    "x": 22.4,
+    "y": 0,
+    "z": 25.6,
+    "rotation": [
+      0,
+      0,
+      0
+    ],
+    "scale": 1.0,
+    "glb_url": "/assets/glb/fakehash_light.obj",
+    "quality": "light",
+    "meta": {
+      "hash": "fakehash",
+      "quality": "light",
+      "attrs": {}
+    }
+  },
+  {
+    "id": "tile_298_377",
+    "x": 953.6,
+    "y": 0,
+    "z": 1206.4,
+    "rotation": [
+      0,
+      0,
+      0
+    ],
+    "scale": 1.0,
+    "glb_url": "/assets/glb/c9ce075520235cd9c6a791d007ad92eaad3704d9cee5ffe18774e4b0c5bd3cfe_refined.glb",
+    "quality": "refined",
+    "meta": {
+      "hash": "c9ce075520235cd9c6a791d007ad92eaad3704d9cee5ffe18774e4b0c5bd3cfe",
+      "attrs": {
+        "category": "object",
+        "colors": [
+          "red",
+          "white"
+        ],
+        "size": "medium",
+        "orientation": "front",
+        "details": [
+          "placeholder"
+        ]
+      },
+      "prompt": "voxel-style object, medium, primary colors: red, white, details: placeholder, low-poly, game-friendly, 3D render, front view",
+      "quality": "light",
+      "output": "c9ce075520235cd9c6a791d007ad92eaad3704d9cee5ffe18774e4b0c5bd3cfe_light.glb",
+      "output_type": "glb"
+    },
+    "meta_refined": {
+      "base": "c9ce075520235cd9c6a791d007ad92eaad3704d9cee5ffe18774e4b0c5bd3cfe_light.glb",
+      "refined": "c9ce075520235cd9c6a791d007ad92eaad3704d9cee5ffe18774e4b0c5bd3cfe_refined.glb",
+      "quality": "refined"
+    }
   }
 ]

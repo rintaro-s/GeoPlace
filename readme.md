@@ -24,33 +24,6 @@ python -m uvicorn backend.main:app --host 127.0.0.1 --port 8001
 python backend/main.py
 ```
 
-**ブラウザでのアクセス:**
-- 描画ツール: http://127.0.0.1:8001/frontend/paint.html
-- 3Dワールド: http://127.0.0.1:8001/frontend/world.html  
-- 管理画面: http://127.0.0.1:8001/frontend/admin.html
-
-**注意:** file:// で直接 HTML を開くのではなく、必ず上記の http:// URLs からアクセスしてください。
-
-## 差分 -> 生成フロー (現実装)
-1. paint.html で描画 (ローカルに変更タイル保持)  
-2. 送信ボタンまたは生成ボタンで `/api/paint` 経由サーバへ反映  
-3. `/api/generate` でジョブ生成 (light パイプライン: VLMダミー→SDダミー→3Dダミー)  
-4. light 完了後 `refining` ステージで refined GLB へ差し替え  
-5. WebSocket (`/ws`) が `job_progress` / `job_done` を push → world.html が再取得  
-
-## WebSocket メッセージ例
-```json
-{"type":"job_progress","job_id":"job_...","stage":"light","entry":{"id":"tile_10_5", ...}}
-{"type":"job_done","job_id":"job_...","stage":"refine"}
-```
-
-## API (抜粋)
-- `POST /api/paint` `{tile_x,int, tile_y,int, pixels:[[r,g,b,a],...], tile_size, user_id}`  
-- `POST /api/generate` `{tiles:[[tx,ty],...] | null}` (null=全変更タイル)  
-- `GET /api/status/{job_id}` ジョブ詳細  
-- `GET /api/objects.json` 現在のワールドオブジェクト一覧  
-- WebSocket `/ws` : 進捗/完了通知  
-
 ## 設定
 `backend/config.yaml` でタイルサイズ/ワーカー数/リファイン有無などを調整可能。
 
@@ -149,7 +122,7 @@ pip install diffusers transformers accelerate safetensors
 ```
 
 cd E:\\GITS\\TripoSR-main
-python run.py examples/chair.png --output-dir output/ --bake-texture
+python run.py path/to/input_image.png --output-dir path/to/output --bake-texture --texture-resolution 512
 
 ```
 
@@ -213,7 +186,7 @@ VLM の出力を構造化（JSON）して、PromptBuilder がテンプレート�
 
   * 法線推定 → Poisson surface reconstruction（メッシュ化）
 
-  * リトポ（必要なら decimate） → UV 生成（簡易） → glTF export
+  * リトポ（必要なら decimate） → UV 生成（簡易） → obj + png
 
 * 注意：品質向上は生成器のハイパーパラメータ（ステップ）で調整。時間と品質のトレードオフあり。
 
@@ -235,7 +208,7 @@ VLM の出力を構造化（JSON）して、PromptBuilder がテンプレート�
 
 ### ワーカー（役割）
 
-* **light_worker**：VLM抽出 → CLIPテンプレ検索 → prompt 作成 → SD で単一画像を生成 → TripoSR（低品質設定）で mesh生成 → Open3Dで簡易処理 → 保存（glb）→ notify
+* **light_worker**：VLM抽出 → CLIPテンプレ検索 → prompt 作成 → SD で単一画像を生成 → TripoSR（低品質設定）で mesh生成 → Open3Dで簡易処理 → 保存（obj + png）→ notify
 
 * **refine_worker**（バックグラウンド）：より高品質設定で再生成（より高解像度）→差し替え通知
 
