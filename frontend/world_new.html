@@ -212,6 +212,12 @@
                 // Note: backend's object positions assume origin at top-left mapping to positive x/z.
                 ground.setAttribute('position', `${worldW/2} -0.5 ${worldH/2}`);
             }
+            // Re-render objects so they move/scale with the ground
+            try {
+                renderObjects();
+            } catch (e) {
+                console.warn('Failed to re-render objects after scale change', e);
+            }
         }
 
         function onMoveSpeedChange(val){
@@ -291,7 +297,13 @@
             objectList.innerHTML = '';
             
             // compute display scale multiplier (backend world units -> displayed units)
-            const scaleMultiplier = baseTileWorldSize * parseFloat(document.getElementById('tile-scale').value || '1.0');
+            const tileScaleVal = parseFloat(document.getElementById('tile-scale').value || '1.0');
+            const scaleMultiplier = baseTileWorldSize * tileScaleVal;
+            // compute ground world size and center offset (must match onTileScaleChange)
+            const worldW = (CANVAS_PX_W / TILE_PX) * BACKEND_TILE_WORLD * baseTileWorldSize * tileScaleVal;
+            const worldH = (CANVAS_PX_H / TILE_PX) * BACKEND_TILE_WORLD * baseTileWorldSize * tileScaleVal;
+            const groundCenterX = worldW / 2.0;
+            const groundCenterZ = worldH / 2.0;
 
             objects.forEach((obj, index) => {
                 // Create 3D object
@@ -301,17 +313,50 @@
                 const px = (obj.x || 0) * scaleMultiplier;
                 const py = (obj.y || 0);
                 const pz = (obj.z || 0) * scaleMultiplier;
-                entity.setAttribute('position', `${px} ${py + 1} ${pz}`);
+                // objects.json uses top-left origin; we placed the ground centered at worldW/2,worldH/2
+                const finalX = px + groundCenterX;
+                const finalZ = pz + groundCenterZ;
+                // lift objects slightly above ground so they aren't z-fighting
+                const finalY = py + 0.5;
+                entity.setAttribute('position', `${finalX} ${finalY} ${finalZ}`);
                 
                 if (obj.glb_url && obj.glb_url !== '/assets/glb/GLB_PLACEHOLDER') {
-                    if (obj.glb_url.endsWith('.obj')) {
-                        // Handle OBJ files
-                        entity.setAttribute('obj-model', `obj: ${obj.glb_url}`);
+                    const url = obj.glb_url;
+                    // If it's an OBJ, explicitly pass the MTL path too (helps loaders resolve materials)
+                    if (url.toLowerCase().endsWith('.obj')) {
+                        const mtlUrl = url.replace(/\.obj$/i, '.mtl');
+                        entity.setAttribute('obj-model', `obj: ${url}; mtl: ${mtlUrl}`);
+                        entity.setAttribute('scale', '0.5 0.5 0.5');
+                        // If OBJ fails to load, show a simple textured plane as a last-resort fallback
+                        entity.addEventListener('model-error', function (evt) {
+                            console.warn('OBJ load failed for', url, evt);
+                            const png = url.replace(/\.obj$/i, '_fallback.png');
+                            createTexturedBoxFallback(this, png, scaleMultiplier);
+                        });
                     } else {
-                        // Handle GLB files
-                        entity.setAttribute('gltf-model', obj.glb_url);
+                        // Handle GLB files; if GLB parsing fails (corrupt placeholder), try OBJ fallback or a textured plane
+                        entity.setAttribute('gltf-model', url);
+                        entity.setAttribute('scale', '0.5 0.5 0.5');
+                        entity.addEventListener('model-error', function (evt) {
+                            console.warn('gltf-model failed for', url, evt);
+                            // try corresponding .obj
+                            const objUrl = url.replace(/\.glb$/i, '.obj');
+                            const mtlUrl = objUrl.replace(/\.obj$/i, '.mtl');
+                            // attempt OBJ fallback
+                            this.removeAttribute('gltf-model');
+                            this.setAttribute('obj-model', `obj: ${objUrl}; mtl: ${mtlUrl}`);
+                            // if OBJ also fails shortly after, show textured plane
+                            const self = this;
+                            setTimeout(() => {
+                                // if no children/models attached, fallback
+                                // We check if the entity has any object3D children (A-Frame puts Three objects there)
+                                if (!self.getObject3D || !self.getObject3D('mesh')) {
+                                    const png = url.replace(/\.glb$/i, '_fallback.png');
+                                    createTexturedBoxFallback(self, png, scaleMultiplier);
+                                }
+                            }, 1200);
+                        });
                     }
-                    entity.setAttribute('scale', '0.5 0.5 0.5');
                 } else {
                     // Fallback: colored box
                     entity.setAttribute('geometry', 'primitive: box; width: 1; height: 1; depth: 1');
@@ -333,14 +378,19 @@
                 // Add to UI list
                 const listItem = document.createElement('div');
                 listItem.className = 'object-item';
-                listItem.textContent = `${obj.id || index}: (${obj.x}, ${obj.y}, ${obj.z})`;
+                // Show scaled & offset coordinates to match rendered position
+                listItem.textContent = `${obj.id || index}: (${Math.round(finalX)}, ${Math.round(finalY)}, ${Math.round(finalZ)})`;
                 listItem.onclick = () => focusOnObject(obj);
                 objectList.appendChild(listItem);
             });
         }
         
         function focusOnObject(obj) {
-            const targetPos = `${obj.x} ${(obj.y || 0) + 5} ${(obj.z || 0) + 5}`;
+            const scaleMultiplier = baseTileWorldSize * parseFloat(document.getElementById('tile-scale').value || '1.0');
+            const tx = (obj.x || 0) * scaleMultiplier;
+            const ty = (obj.y || 0) + 5;
+            const tz = (obj.z || 0) * scaleMultiplier;
+            const targetPos = `${tx} ${ty} ${tz}`;
             cameraRig.setAttribute('animation', `property: position; to: ${targetPos}; dur: 1000`);
             log(`Focusing on object at (${obj.x}, ${obj.y}, ${obj.z})`, 'info');
         }
@@ -356,6 +406,45 @@
         function refreshObjects() {
             log('Refreshing objects...', 'info');
             loadObjects();
+        }
+
+        function createTexturedPlaneFallback(entity, pngUrl) {
+            try {
+                // remove model-related attributes
+                entity.removeAttribute('obj-model');
+                entity.removeAttribute('gltf-model');
+                // create a child plane that uses the PNG as texture
+                // fallback kept for older cases
+                const plane = document.createElement('a-plane');
+                plane.setAttribute('position', '0 0 0');
+                plane.setAttribute('rotation', '-90 0 0');
+                plane.setAttribute('width', '1');
+                plane.setAttribute('height', '1');
+                plane.setAttribute('material', `src: ${pngUrl}; side: double`);
+                plane.setAttribute('scale', '1 1 1');
+                entity.appendChild(plane);
+            } catch (e) {
+                console.warn('Failed to create textured plane fallback', e);
+            }
+        }
+
+        function createTexturedBoxFallback(entity, pngUrl, scaleMultiplier) {
+            try {
+                entity.removeAttribute('obj-model');
+                entity.removeAttribute('gltf-model');
+                // create a thin box so it looks less like paper
+                const box = document.createElement('a-box');
+                // size the box relative to scaleMultiplier to keep visual consistency
+                const size = Math.max(0.6 * scaleMultiplier, 0.5);
+                box.setAttribute('width', size);
+                box.setAttribute('height', size * 0.6);
+                box.setAttribute('depth', Math.max(0.05, size * 0.05));
+                box.setAttribute('material', `src: ${pngUrl}; side: double`);
+                box.setAttribute('position', '0 0 0');
+                entity.appendChild(box);
+            } catch (e) {
+                console.warn('Failed to create textured box fallback', e);
+            }
         }
         
         function resetCamera() {

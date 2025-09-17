@@ -150,11 +150,79 @@ def generate_glb_from_image(image_bytes: bytes, out_path: Path, quality: str = '
             shutil.move(str(placeholder), str(out_path))
             return out_path
 
-        # find glb
+        # find any outputs in the outdir
         found = _find_glb_in_dir(outdir)
         if found:
-            shutil.move(str(found), str(out_path))
-            return out_path
+            # If config requests OBJ (TripoSR is known to favor OBJ+texture),
+            # attempt to convert GLB -> OBJ if trimesh is available; otherwise
+            # move the GLB but warn in the logs.
+            desired_fmt = getattr(settings, 'TRIPOSR_OUTPUT_FORMAT', 'glb')
+            if desired_fmt.lower() == 'obj':
+                if trimesh is not None:
+                    try:
+                        scene = trimesh.load(str(found))
+                        # export as obj (may produce separate material/texture files)
+                        obj_bytes = scene.export(file_type='obj')
+                        # trimesh returns str for obj, ensure bytes
+                        if isinstance(obj_bytes, str):
+                            obj_bytes = obj_bytes.encode('utf-8')
+                        obj_out = out_path.with_suffix('.obj')
+                        with open(obj_out, 'wb') as of:
+                            of.write(obj_bytes)
+                        # try to export textures/mtl if available via export to 'obj' produced files
+                        # Note: trimesh may not include textures; preserve any texture files present.
+                        for p in outdir.iterdir():
+                            if p.suffix.lower() in ('.png', '.jpg', '.jpeg', '.mtl'):
+                                shutil.move(str(p), str(out_path.parent / p.name))
+                        return obj_out
+                    except Exception:
+                        # conversion failed; fall back to moving the GLB and also produce a textured quad OBJ
+                        pass
+                # trimesh not available or conversion failed -> fall back to generating a textured quad OBJ
+                # create a textured quad using the input image if present
+                tex_path = None
+                for p in outdir.iterdir():
+                    if p.suffix.lower() in ('.png', '.jpg', '.jpeg'):
+                        tex_path = p
+                        break
+                if tex_path is None:
+                    # try to use the original input if present (inp)
+                    if inp.exists():
+                        tex_src = inp
+                    else:
+                        tex_src = None
+                else:
+                    tex_src = tex_path
+
+                obj_name = out_path.stem + '_fallback.obj'
+                obj_path = out_path.parent / obj_name
+                mtl_name = out_path.stem + '_fallback.mtl'
+                mtl_path = out_path.parent / mtl_name
+                tex_name = out_path.stem + '_fallback.png'
+                tex_out = out_path.parent / tex_name
+                if tex_src is not None and tex_src.exists():
+                    shutil.copy(str(tex_src), str(tex_out))
+                # write MTL referencing the texture
+                with open(mtl_path, 'w', encoding='utf-8') as mf:
+                    mf.write(f"newmtl fallback\nmap_Kd {tex_name}\n")
+                # write OBJ: a single quad with uv coords
+                with open(obj_path, 'w', encoding='utf-8') as of:
+                    of.write(f"mtllib {mtl_name}\n")
+                    of.write("o fallback_quad\n")
+                    # vertices
+                    of.write("v -0.5 -0.5 0.0\n")
+                    of.write("v 0.5 -0.5 0.0\n")
+                    of.write("v 0.5 0.5 0.0\n")
+                    of.write("v -0.5 0.5 0.0\n")
+                    # uvs
+                    of.write("vt 0 0\n")
+                    of.write("vt 1 0\n")
+                    of.write("vt 1 1\n")
+                    of.write("vt 0 1\n")
+                    of.write("usemtl fallback\n")
+                    of.write("s off\n")
+                    of.write("f 1/1 2/2 3/3 4/4\n")
+                return obj_path
 
         # No .glb: try to find .obj and use it directly or convert to glb
         obj_path = None

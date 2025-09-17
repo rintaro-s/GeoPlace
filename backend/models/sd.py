@@ -7,6 +7,9 @@ from typing import Optional
 from io import BytesIO
 from PIL import Image, ImageDraw
 import traceback
+import subprocess
+import json
+from pathlib import Path
 
 _PIPELINE = None
 _DEVICE = None
@@ -38,12 +41,34 @@ def load_sd_model(model_id: Optional[str] = None):
     global _PIPELINE, _DEVICE
     if _PIPELINE is not None:
         return _PIPELINE
+    # If an external SD venv is configured, prefer subprocess-based generation
+    try:
+        from ..config import settings as _settings
+        sd_python = getattr(_settings, 'SD_VENV_PYTHON', None)
+    except Exception:
+        sd_python = None
+
+    if sd_python:
+        # Skip in-process load to avoid importing diffusers/accelerate/huggingface_hub
+        # into the main venv. Subprocess worker will be used instead.
+        _PIPELINE = None
+        _DEVICE = 'cpu'
+        print('[SD] SD_VENV_PYTHON configured; skipping in-process SD model load')
+        return None
+
     try:
         import torch
         from diffusers import StableDiffusionPipeline
         model_id = model_id or 'runwayml/stable-diffusion-v1-5'
         device = 'cuda' if torch.cuda.is_available() else 'cpu'
-        pipe = StableDiffusionPipeline.from_pretrained(model_id, torch_dtype=torch.float16 if device=='cuda' else None)
+        # Use CPU-friendly defaults when CUDA is not available
+        torch_dtype = torch.float16 if device == 'cuda' else None
+        # low_cpu_mem_usage can help on constrained systems
+        try:
+            pipe = StableDiffusionPipeline.from_pretrained(model_id, torch_dtype=torch_dtype, low_cpu_mem_usage=(device!='cuda'))
+        except TypeError:
+            # older diffusers may not support low_cpu_mem_usage
+            pipe = StableDiffusionPipeline.from_pretrained(model_id, torch_dtype=torch_dtype)
         # enable optimizations
         try:
             pipe.enable_attention_slicing()
@@ -55,7 +80,10 @@ def load_sd_model(model_id: Optional[str] = None):
         _PIPELINE = pipe
         return _PIPELINE
     except Exception:
-        # fallback
+        # fallback: print traceback to help debugging and return None
+        import traceback
+        tb = traceback.format_exc()
+        print('[SD] failed to load Stable Diffusion pipeline:', tb)
         _PIPELINE = None
         _DEVICE = 'cpu'
         return None
@@ -64,7 +92,35 @@ def load_sd_model(model_id: Optional[str] = None):
 def generate_image(model, prompt: str, seed: Optional[int]=None) -> bytes:
     """Generate PNG bytes for the prompt. If model is None, use dummy generator."""
     try:
+        # If no in-process model is loaded, but an external SD venv is configured,
+        # prefer calling the sd_worker subprocess so real SD images can be produced
+        # without importing heavy ML packages into the main venv.
         if model is None:
+            try:
+                from ..config import settings as _settings
+                sd_python = getattr(_settings, 'SD_VENV_PYTHON', None)
+            except Exception:
+                sd_python = None
+            if sd_python:
+                # call the sd_worker.py in the provided python venv
+                worker = Path(__file__).resolve().parent.parent.parent / 'scripts' / 'sd_worker.py'
+                out_path = worker.parent / 'tmp_sd_out.png'
+                cmd = [sd_python, str(worker), '--prompt', prompt, '--out', str(out_path)]
+                try:
+                    proc = subprocess.run(cmd, capture_output=True, text=True, timeout=180)
+                except Exception as e:
+                    print('[SD] subprocess call failed:', e)
+                    proc = None
+                if proc and proc.stdout:
+                    try:
+                        outj = json.loads(proc.stdout)
+                        if outj.get('status') == 'ok' and Path(outj['out']).exists():
+                            data = Path(outj['out']).read_bytes()
+                            return data
+                    except Exception:
+                        # fall through to dummy below
+                        pass
+            # No external venv or subprocess failure: return diagnostic image
             return _dummy_generate(prompt)
         # model is a diffusers pipeline
         import torch
@@ -79,4 +135,33 @@ def generate_image(model, prompt: str, seed: Optional[int]=None) -> bytes:
     except Exception:
         # on any error, return dummy image
         traceback.print_exc()
+        # Attempt subprocess fallback: if environment variable or settings provide
+        try:
+            # prefer environment variable `SD_VENV_PYTHON` or settings
+            sd_python = None
+            try:
+                # lazy import settings to avoid circular imports at module load
+                from ..config import settings as _settings
+                sd_python = getattr(_settings, 'SD_VENV_PYTHON', None)
+            except Exception:
+                sd_python = None
+            if sd_python:
+                # call the sd_worker.py in the provided python venv
+                worker = Path(__file__).resolve().parent.parent.parent / 'scripts' / 'sd_worker.py'
+                cmd = [sd_python, str(worker), '--prompt', prompt, '--out', str(worker.parent / 'tmp_sd_out.png')]
+                try:
+                    proc = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+                except Exception as e:
+                    print('[SD] subprocess call failed:', e)
+                    proc = None
+                if proc and proc.stdout:
+                    try:
+                        outj = json.loads(proc.stdout)
+                        if outj.get('status') == 'ok':
+                            data = Path(outj['out']).read_bytes()
+                            return data
+                    except Exception:
+                        pass
+        except Exception:
+            pass
         return _dummy_generate(prompt)

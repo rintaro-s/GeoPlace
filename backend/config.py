@@ -33,7 +33,10 @@ class Settings:
         self.TRIPOSR_DIR = d.get('TRIPOSR_DIR', None)
         self.TRIPOSR_PY = d.get('TRIPOSR_PY', 'run.py')
         self.TRIPOSR_BAKE_TEXTURE = d.get('TRIPOSR_BAKE_TEXTURE', True)
+        self.TRIPOSR_OUTPUT_FORMAT = d.get('TRIPOSR_OUTPUT_FORMAT', 'glb')
         self.SD_MODEL_ID = d.get('SD_MODEL_ID', 'runwayml/stable-diffusion-v1-5')
+        # Path to an external python executable for SD worker (optional)
+        self.SD_VENV_PYTHON = d.get('SD_VENV_PYTHON', None)
 
     @property
     def glb_dir(self) -> Path:

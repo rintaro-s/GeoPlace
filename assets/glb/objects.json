@@ -154,7 +154,7 @@
       0
     ],
     "scale": 1.0,
-    "glb_url": "/assets/glb/fakehash_light.obj",
+    "glb_url": "/assets/glb/fakehash_light.glb",
     "quality": "light",
     "meta": {
       "hash": "fakehash",
@@ -198,6 +198,64 @@
       "base": "c9ce075520235cd9c6a791d007ad92eaad3704d9cee5ffe18774e4b0c5bd3cfe_light.glb",
       "refined": "c9ce075520235cd9c6a791d007ad92eaad3704d9cee5ffe18774e4b0c5bd3cfe_refined.glb",
       "quality": "refined"
+    }
+  },
+  {
+    "id": "tile_293_380",
+    "x": 937.6,
+    "y": 0,
+    "z": 1216.0,
+    "rotation": [
+      0,
+      0,
+      0
+    ],
+    "scale": 1.0,
+    "glb_url": "/assets/glb/0a33d837cfc4878808ef2ba91c54ef65a74a36f02ef83dfa225778ec49a7601a_refined.glb",
+    "quality": "refined",
+    "meta": {
+      "hash": "0a33d837cfc4878808ef2ba91c54ef65a74a36f02ef83dfa225778ec49a7601a",
+      "attrs": {
+        "category": "object",
+        "colors": [
+          "red",
+          "white"
+        ],
+        "size": "medium",
+        "orientation": "front",
+        "details": [
+          "placeholder"
+        ]
+      },
+      "prompt": "voxel-style object, medium, primary colors: red, white, details: placeholder, low-poly, game-friendly, 3D render, front view",
+      "quality": "light",
+      "output": "0a33d837cfc4878808ef2ba91c54ef65a74a36f02ef83dfa225778ec49a7601a_light.glb",
+      "output_type": "glb"
+    },
+    "meta_refined": {
+      "base": "0a33d837cfc4878808ef2ba91c54ef65a74a36f02ef83dfa225778ec49a7601a_light.glb",
+      "refined": "0a33d837cfc4878808ef2ba91c54ef65a74a36f02ef83dfa225778ec49a7601a_refined.glb",
+      "quality": "refined"
+    }
+  },
+  {
+    "id": "tile_295_378",
+    "x": 944.0,
+    "y": 0,
+    "z": 1209.6,
+    "rotation": [
+      0,
+      0,
+      0
+    ],
+    "scale": 1.0,
+    "glb_url": "/assets/glb/b0775cba09eadf2fde241b35daa28cdcd03af6d23e99e0decd32b42f13f6d220_light.obj",
+    "quality": "light",
+    "meta": {
+      "hash": "b0775cba09eadf2fde241b35daa28cdcd03af6d23e99e0decd32b42f13f6d220",
+      "attrs": {},
+      "prompt": "",
+      "quality": "light"
     }
   }
 ]

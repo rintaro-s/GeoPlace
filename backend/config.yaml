@@ -21,3 +21,4 @@ TRIPOSR_BAKE_TEXTURE: true
 TRIPOSR_OUTPUT_FORMAT: "obj"
 # Stable Diffusion のモデル ID (diffusers)
 SD_MODEL_ID: "runwayml/stable-diffusion-v1-5"
+SD_VENV_PYTHON: "C:\\Users\\s-rin\\Documents\\GitHub\\GeoPlace\\venv-sd\\Scripts\\python.exe"
