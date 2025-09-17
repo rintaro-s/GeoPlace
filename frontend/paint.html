@@ -275,6 +275,7 @@
     const INITIAL_ZOOM = 4;
     const MAX_DISPLAY_PIXELS = 20000000; // 2000万画素上限
     const TILE_CACHE_SIZE = 1000; // キャッシュするタイル数
+  const MAX_CONCURRENT_REQUESTS = 8; // 並列でのタイルフェッチ上限（調整可）
     
     // Canvas and context
     const canvas = document.getElementById('mainCanvas');
@@ -298,6 +299,7 @@
     
     // Tiled canvas system for large image handling
     let tileCache = new Map(); // キャッシュされたタイル画像
+  let loadingPromises = new Map(); // key -> Promise resolving to canvas
     let loadingTiles = new Set(); // 読み込み中のタイル
     let modifiedTiles = new Set();
     let selectedTiles = new Set();
@@ -359,7 +361,7 @@
       canvas.width = TILE_SIZE;
       canvas.height = TILE_SIZE;
       const ctx = canvas.getContext('2d');
-      ctx.fillStyle = 'rgba(0, 0, 0, 0)';
+      ctx.fillStyle = 'rgba(255, 0, 0, 255)';
       ctx.fillRect(0, 0, TILE_SIZE, TILE_SIZE);
       return canvas;
     }
@@ -372,6 +374,10 @@
           controller.abort();
           activeRequests.delete(tileKey);
           loadingTiles.delete(tileKey);
+          // Also remove any in-flight promise so a re-request can start later
+          if (loadingPromises.has(tileKey)) {
+            loadingPromises.delete(tileKey);
+          }
         }
       });
     }
@@ -422,109 +428,179 @@
     async function loadTileImage(tileX, tileY, priority = 0) {
       const key = `${tileX},${tileY}`;
       
-      // Return cached tile immediately
+      // Return cached tile immediately and mark as recently used (LRU touch)
       if (tileCache.has(key)) {
-        return tileCache.get(key);
+        const cached = tileCache.get(key);
+        // update insertion order to mark as recently used
+        tileCache.delete(key);
+        tileCache.set(key, cached);
+        return cached;
       }
       
-      // Skip if already loading
-      if (loadingTiles.has(key)) {
-        return null;
+      // If there's already an in-flight promise for this tile, reuse it
+      if (loadingPromises.has(key)) {
+        try {
+          return await loadingPromises.get(key);
+        } catch (e) {
+          // fallthrough to create a new request
+        }
       }
-      
-      loadingTiles.add(key);
-      
-      // Create abort controller for this request
-      const controller = new AbortController();
-      activeRequests.set(key, controller);
-      
-      try {
-        // Determine base URL
-        let baseUrl = '';
-        if (location.protocol === 'file:') {
-          baseUrl = 'http://127.0.0.1:8001';
-        }
-        
-        const tileUrl = `${baseUrl}/api/tile/${tileX}/${tileY}?t=${Date.now()}`;
-        const response = await fetch(tileUrl, { 
-          signal: controller.signal,
-          mode: 'cors',
-          cache: 'no-cache',
-          credentials: 'same-origin',
-          headers: {
-            'Accept': 'image/png,image/webp,image/apng,*/*',
-          },
-          priority: priority > 0 ? 'high' : 'low'
-        });
-        
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        
-        const blob = await response.blob();
-        
-        // Check if request was cancelled
-        if (controller.signal.aborted) {
-          return null;
-        }
-        
-        // Create canvas and draw image
-        const canvas = document.createElement('canvas');
-        canvas.width = TILE_SIZE;
-        canvas.height = TILE_SIZE;
-        const ctx = canvas.getContext('2d');
-        
-        // Create image and set up loading
-        const img = new Image();
-        img.crossOrigin = 'anonymous';
-        
-        // Create a promise to handle image loading
-        const imgLoadPromise = new Promise((resolve, reject) => {
-          img.onload = () => {
-            try {
-              // Clear any previous content
-              ctx.clearRect(0, 0, TILE_SIZE, TILE_SIZE);
-              // Draw the image
-              ctx.drawImage(img, 0, 0, TILE_SIZE, TILE_SIZE);
-              resolve();
-            } catch (e) {
-              console.error('Error drawing tile:', e);
-              reject(e);
-            }
-          };
-          img.onerror = (e) => {
-            console.error('Error loading tile image:', e);
-            reject(new Error('Failed to load tile image'));
-          };
-          
-          // Set source after setting up event handlers
-          try {
-            img.src = URL.createObjectURL(blob);
-          } catch (e) {
-            console.error('Error creating object URL:', e);
-            reject(e);
+
+      // Create a promise for this in-flight request and store it so other callers can await it
+      const loadPromise = (async () => {
+        // Mark loading
+        loadingTiles.add(key);
+
+        // Create abort controller for this request
+        const controller = new AbortController();
+        activeRequests.set(key, controller);
+
+        try {
+          // Determine base URL
+          let baseUrl = '';
+          if (location.protocol === 'file:') {
+            baseUrl = 'http://127.0.0.1:8001';
           }
-        });
-        
-        // Wait for image to load and draw
-        await imgLoadPromise;
-        
-        // Store in cache
-        tileCache.set(key, canvas);
-        return canvas;
-      } catch (error) {
-        if (error.name === 'AbortError') {
-          return null; // Request was cancelled
+
+          const tileUrl = `${baseUrl}/api/tile/${tileX}/${tileY}?t=${Date.now()}`;
+          // fetchを極力シンプルに（CORSやキャッシュの影響を排除）
+          const response = await fetch(tileUrl, {
+            signal: controller.signal,
+            cache: 'no-store'
+          });
+
+          console.log('Fetch response for', tileX, tileY, response.status, response.headers.get('content-type'));
+
+          const blob = await response.blob();
+          console.log('Blob for', tileX, tileY, 'size:', blob.size, 'type:', blob.type);
+
+          // Debug: Convert blob to data URL to check content
+          const dataUrl = await blobToDataUrl(blob);
+          console.log('Data URL for', tileX, tileY, 'length:', dataUrl.length, 'starts with:', dataUrl.substring(0, 50));
+
+          // Check if request was cancelled
+          if (controller.signal.aborted) {
+            return null;
+          }
+
+          // Create canvas for this tile
+          const canvas = document.createElement('canvas');
+          canvas.width = TILE_SIZE;
+          canvas.height = TILE_SIZE;
+          const ctx = canvas.getContext('2d');
+
+          // Debug: inspect first bytes of the blob to confirm PNG signature
+          try {
+            const headerBuf = await blob.slice(0, 8).arrayBuffer();
+            const headerBytes = Array.from(new Uint8Array(headerBuf)).map(b => b.toString(16).padStart(2, '0')).join(' ');
+            console.log(`Blob header for ${tileX},${tileY}:`, headerBytes);
+          } catch (e) {
+            console.warn('Could not read blob header:', e);
+          }
+
+          // Try to create an ImageBitmap first (faster, avoids some CORS pitfalls)
+          let drawn = false;
+          if (typeof createImageBitmap === 'function') {
+            try {
+              const bitmap = await createImageBitmap(blob);
+              // drawImage with ImageBitmap
+              ctx.clearRect(0, 0, TILE_SIZE, TILE_SIZE);
+              ctx.drawImage(bitmap, 0, 0, TILE_SIZE, TILE_SIZE);
+              // Check pixels
+              const imageData = ctx.getImageData(0, 0, TILE_SIZE, TILE_SIZE);
+              const pixelCount = imageData.data.length / 4;
+              let nonTransparentPixels = 0;
+              for (let i = 0; i < imageData.data.length; i += 4) {
+                if (imageData.data[i + 3] > 0) nonTransparentPixels++;
+              }
+              console.log(`createImageBitmap draw for ${tileX},${tileY}: ${nonTransparentPixels}/${pixelCount} pixels drawn`);
+              drawn = true;
+              // If ImageBitmap uses internal resources, close when possible
+              if (bitmap.close) try { bitmap.close(); } catch (e) {}
+            } catch (e) {
+              console.warn('createImageBitmap failed, falling back to Image element:', e);
+            }
+          }
+
+          // Fallback: use Image + FileReader + img.decode() for reliable decoding
+          if (!drawn) {
+            const img = new Image();
+            img.crossOrigin = 'anonymous';
+
+            try {
+              // Convert blob to data URL then use img.decode() to await decoding
+              const dataUrl = await blobToDataUrl(blob);
+              img.src = dataUrl;
+              console.log('Set img.src for', tileX, tileY, dataUrl.substring(0, 60));
+              // Wait for decoding
+              try {
+                if (img.decode) {
+                  await img.decode();
+                } else {
+                  // Older browsers: wait for onload event
+                  await new Promise((resolve, reject) => {
+                    img.onload = resolve;
+                    img.onerror = reject;
+                  });
+                }
+              } catch (e) {
+                console.warn('img.decode/onload failed for', tileX, tileY, e);
+              }
+
+              // Draw and inspect pixels
+              try {
+                ctx.clearRect(0, 0, TILE_SIZE, TILE_SIZE);
+                ctx.drawImage(img, 0, 0, TILE_SIZE, TILE_SIZE);
+                const imageData = ctx.getImageData(0, 0, TILE_SIZE, TILE_SIZE);
+                const pixelCount = imageData.data.length / 4;
+                let nonTransparentPixels = 0;
+                for (let i = 0; i < imageData.data.length; i += 4) {
+                  if (imageData.data[i + 3] > 0) nonTransparentPixels++;
+                }
+                console.log(`Image element draw for ${tileX},${tileY}: ${nonTransparentPixels}/${pixelCount} pixels drawn`);
+                drawn = true;
+              } catch (e) {
+                console.error('Error drawing tile with Image fallback:', e);
+              }
+            } catch (e) {
+              console.error('Fallback image load failed:', e);
+            }
+          }
+
+          if (!drawn) {
+            // As ultimate fallback, fill red so user sees a visible tile
+            ctx.fillStyle = 'rgba(255, 0, 0, 255)';
+            ctx.fillRect(0, 0, TILE_SIZE, TILE_SIZE);
+            console.warn(`Tile ${tileX},${tileY} rendered as fallback red tile`);
+          }
+
+          // Store in cache
+          tileCache.set(key, canvas);
+          return canvas;
+        } catch (error) {
+          if (error.name === 'AbortError') {
+            return null; // Request was cancelled
+          }
+          console.warn(`Failed to load tile ${tileX},${tileY}:`, error);
+          // Create and return an empty tile on error
+          const emptyTile = createEmptyTile();
+          tileCache.set(key, emptyTile);
+          return emptyTile;
+        } finally {
+          loadingTiles.delete(key);
+          // activeRequests cleanup will be handled after awaiting the promise
         }
-        console.warn(`Failed to load tile ${tileX},${tileY}:`, error);
-        
-        // Create and return an empty tile on error
-        const emptyTile = createEmptyTile();
-        tileCache.set(key, emptyTile);
-        return emptyTile;
+      })();
+
+      loadingPromises.set(key, loadPromise);
+
+      try {
+        const result = await loadPromise;
+        return result;
       } finally {
-        loadingTiles.delete(key);
-        activeRequests.delete(key);
+        loadingPromises.delete(key);
+        // ensure activeRequests entry removed if present
+        if (activeRequests.has(key)) activeRequests.delete(key);
       }
     }
     
@@ -573,9 +649,9 @@
     async function render() {
       if (!canvas) return;
       
-      // Clear canvas with a light background
+      // Clear canvas with a dark background
       const ctx = canvas.getContext('2d');
-      ctx.fillStyle = '#f0f0f0';
+      ctx.fillStyle = '#000000';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
       
       // Calculate visible area in world coordinates
@@ -638,7 +714,7 @@
             tilesToLoad.push({ tx, ty, distance, key: tileKey });
           } else {
             // Draw loading placeholder
-            ctx.fillStyle = '#e0e0e0';
+            ctx.fillStyle = '#ff0000';
             ctx.fillRect(tileX, tileY, TILE_SIZE, TILE_SIZE);
           }
         }
@@ -646,8 +722,8 @@
       
       // Load tiles in priority order (center first)
       tilesToLoad.sort((a, b) => a.distance - b.distance);
-      const maxConcurrentRequests = 4; // Reduced concurrency for better performance
-      const activeCount = activeRequests.size;
+  const maxConcurrentRequests = MAX_CONCURRENT_REQUESTS;
+  const activeCount = activeRequests.size;
       
       for (let i = 0; i < Math.min(tilesToLoad.length, maxConcurrentRequests - activeCount); i++) {
         const tile = tilesToLoad[i];
@@ -931,14 +1007,14 @@
       });
     }
     
-    // Utility functions
-    function hexToRgb(hex) {
-      const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-      return result ? {
-        r: parseInt(result[1], 16),
-        g: parseInt(result[2], 16),
-        b: parseInt(result[3], 16)
-      } : null;
+    // Utility function to convert blob to data URL
+    function blobToDataUrl(blob) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+      });
     }
     
     function screenToCanvas(screenX, screenY) {

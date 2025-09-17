@@ -63,7 +63,7 @@ python backend/main.py
 ---
 以下、元仕様書 (参考 / 将来の本実装指針):
 
-**dot2world 仕様書**
+**GeoPlace 仕様書**
 
 
 このプロジェクトは、複数のユーザーが「20,000×20,000ピクセルくらいの大きなcanvas PNG画像」にドットを置いてみんなで、canvas画像の上に絵を描いて共有することができるものを提供する。
@@ -85,11 +85,11 @@ python backend/main.py
 
 4. Stable Diffusion v1.5（軽量/FP16）で単一視点（正面）画像を生成（ControlNet や inpainting を併用可）。
 
-5. 生成画像を **TripoSR 等の軽量 2D→3D モデル** に渡して点群／メッシュを生成。
+5. 生成画像を **TripoSR 等の軽量 2D→3D モデル** に渡して点群／メッシュを生成。（なお、TripoSRはobj+png。後記でGLBとタイポするかも知れないがobj+pngです。）
 
-6. Open3D で簡易クリーニング（ノイズ除去・法線推定・単純なリトポ）→ glTF/GLB に変換。
+6. Open3D で簡易クリーニング（ノイズ除去・法線推定・単純なリトポ
 
-7. 生成 glTF を `objects.json` に登録して A-frame ワールドに差し替え・配置する（全ユーザ共通）。
+7. 生成 OBJ を `objects.json` に登録して A-frame ワールドに差し替え・配置する（全ユーザ共通）。
 
 8. 3Dワールドを、wasdとマウスで自由に行きできる。スペースやシフトで上下移動なども。座標を入力することでテレポートも可能。
 
@@ -149,7 +149,7 @@ pip install diffusers transformers accelerate safetensors
 ```
 
 cd E:\\GITS\\TripoSR-main
-python run.py examples/chair.png --output-dir output/
+python run.py examples/chair.png --output-dir output/ --bake-texture
 
 ```
 

@@ -36,6 +36,37 @@
         const sc = o.scale || 1.0; e.setAttribute('scale', `${sc} ${sc} ${sc}`);
         // quality color ring
         if (o.quality === 'refined') e.setAttribute('material','color:#FFF;opacity:0.95');
+        
+        // Set model or fallback to primitive - support both GLB and OBJ
+        if (o.glb_url && o.glb_url !== '/assets/glb/GLB_PLACEHOLDER') {
+          if (o.glb_url.endsWith('.obj')) {
+            e.setAttribute('obj-model', `obj: ${o.glb_url}`);
+            // Look for texture file with same name
+            const texUrl = o.glb_url.replace('.obj', '.png');
+            e.setAttribute('obj-model', `obj: ${o.glb_url}; mtl: ${texUrl}`);
+          } else {
+            e.setAttribute('gltf-model', o.glb_url);
+          }
+        } else {
+          // Fallback to colored box for placeholder objects
+          e.setAttribute('geometry', 'primitive: box; width: 1; height: 1; depth: 1');
+          const colors = ['#4CAF50', '#2196F3', '#FF9800', '#E91E63', '#9C27B0'];
+          e.setAttribute('material', `color: ${colors[index % colors.length]}; roughness: 0.3; metalness: 0.1`);
+        }
+        
+        e.setAttribute('position', `${o.x} ${o.y + 0.5} ${o.z}`);
+        e.setAttribute('rotation', (o.rotation || [0,0,0]).join(' '));
+        const sc = o.scale || 1.0; 
+        e.setAttribute('scale', `${sc} ${sc} ${sc}`);
+        e.setAttribute('shadow', 'cast: true; receive: true');
+        
+        // Quality indicator
+        if (o.quality === 'refined') {
+          e.setAttribute('animation', 'property: rotation; to: 0 360 0; loop: true; dur: 10000');
+        }
+        
+        // Click interaction
+        e.setAttribute('class', 'clickable');
         e.addEventListener('click', ()=>{
           hud.textContent = `id: ${o.id}\nquality: ${o.quality}\nurl: ${o.glb_url}`;
         });

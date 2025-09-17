@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GeoPlace - 3D World</title>
+    <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
+    <style>
+        body { margin: 0; overflow: hidden; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        
+        #ui {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            z-index: 1000;
+            background: rgba(0,0,0,0.8);
+            padding: 15px;
+            border-radius: 8px;
+            color: white;
+            min-width: 250px;
+        }
+        
+        #controls {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1000;
+            background: rgba(0,0,0,0.8);
+            padding: 15px;
+            border-radius: 8px;
+            color: white;
+        }
+        
+        button {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 8px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 2px;
+            font-size: 12px;
+        }
+        
+        button:hover { background: #45a049; }
+        
+        .status { color: #4CAF50; font-weight: bold; }
+        .error { color: #f44336; }
+        .info { color: #2196F3; }
+        
+        #object-list {
+            max-height: 200px;
+            overflow-y: auto;
+            margin-top: 10px;
+            font-size: 12px;
+        }
+        
+        .object-item {
+            padding: 5px;
+            border-bottom: 1px solid #444;
+            cursor: pointer;
+        }
+        
+        .object-item:hover {
+            background: rgba(76, 175, 80, 0.2);
+        }
+    </style>
+</head>
+<body>
+    <div id="ui">
+        <h3>🌍 3D World</h3>
+        <div id="status">Loading...</div>
+        <div>Objects: <span id="object-count">0</span></div>
+        <div>Position: <span id="position">0, 0, 0</span></div>
+        <div id="object-list"></div>
+    </div>
+    
+    <div id="controls">
+        <h4>Controls</h4>
+        <button onclick="refreshObjects()">🔄 Refresh</button>
+        <button onclick="resetCamera()">📷 Reset View</button>
+        <button onclick="window.open('/paint', '_blank')">🎨 Paint Tool</button>
+        <button onclick="window.open('/admin', '_blank')">⚙️ Admin</button>
+        <div style="margin-top:8px">
+            <label style="font-size:12px">Tile visual scale: <span id="tile-scale-label">0.25</span></label><br>
+            <input id="tile-scale" type="range" min="0.05" max="1.0" step="0.01" value="0.25" oninput="onTileScaleChange(this.value)">
+        </div>
+        <div style="margin-top:8px">
+            <label style="font-size:12px">Movement speed: <span id="move-speed-label">1.0</span></label><br>
+            <input id="move-speed" type="range" min="0.2" max="5.0" step="0.1" value="1.0" oninput="onMoveSpeedChange(this.value)">
+        </div>
+    </div>
+
+    <a-scene 
+        background="color: #87CEEB"
+        fog="type: linear; color: #87CEEB; near: 50; far: 200"
+        vr-mode-ui="enabled: false">
+        
+        <!-- Lighting -->
+        <a-light type="ambient" color="#404040"></a-light>
+        <a-light type="directional" position="10 20 10" color="#ffffff" intensity="0.8"></a-light>
+        
+        <!-- Ground: use the large canvas.png as a single texture mapped to the plane -->
+        <a-plane id="ground-plane"
+            position="0 -0.5 0"
+            rotation="-90 0 0"
+            width="100"
+            height="100"
+            material="color: #ffffff; side: double"
+            shadow="receive: true">
+        </a-plane>
+        
+        <!-- Grid -->
+        <a-entity id="grid-system">
+            <!-- Grid lines will be added dynamically -->
+        </a-entity>
+        
+        <!-- Camera with movement controls -->
+        <a-entity id="camera-rig" position="0 1.6 5">
+            <a-camera 
+                id="camera"
+                look-controls="pointerLockEnabled: true"
+                wasd-controls="fly: true; acceleration: 80"
+                position="0 0 0">
+            </a-camera>
+        </a-entity>
+        
+        <!-- Objects container -->
+        <a-entity id="objects-container"></a-entity>
+        <!-- Demo 3D model to inspect -->
+        <a-entity id="demo-model" position="5 0 5" rotation="0 45 0" scale="0.6 0.6 0.6"
+                  gltf-model="/assets/glb/ce75997479da8e0c9f1239e8e04ff1e4758a1af985d2540f78585ed848132cde_light.glb"
+                  shadow="cast: true; receive: true">
+            <a-animation attribute="rotation" to="0 405 0" dur="20000" easing="linear" repeat="indefinite"></a-animation>
+        </a-entity>
+    </a-scene>
+
+    <script>
+    let objects = [];
+    let camera, cameraRig, objectsContainer;
+    // When the page is opened from file://, use local server as base
+    const baseUrl = (location.protocol === 'file:') ? 'http://127.0.0.1:8001' : '';
+        
+        document.addEventListener('DOMContentLoaded', init);
+        
+        function init() {
+            // Get A-Frame elements
+            camera = document.querySelector('#camera');
+            cameraRig = document.querySelector('#camera-rig');
+            objectsContainer = document.querySelector('#objects-container');
+            
+            // Setup grid
+            createGrid();
+            
+                // Load initial objects
+                    loadObjects();
+
+                    // Apply initial ground sizing and position according to current tile-scale value
+                    try {
+                        onTileScaleChange(document.getElementById('tile-scale').value);
+                    } catch (e) {
+                        console.warn('Failed to initialize ground scale:', e);
+                    }
+                // set ground material to use server-hosted canvas.png (works with file:// when baseUrl is set)
+                try {
+                    const ground = document.getElementById('ground-plane');
+                    if (ground) {
+                        ground.setAttribute('material', `src: ${baseUrl + '/data/canvas.png'}; repeat: 1 1; side: double`);
+                    }
+                    // set demo model src to use baseUrl if needed
+                    const demo = document.getElementById('demo-model');
+                    if (demo) {
+                        demo.setAttribute('gltf-model', baseUrl + '/assets/glb/ce75997479da8e0c9f1239e8e04ff1e4758a1af985d2540f78585ed848132cde_light.glb');
+                    }
+                } catch (e) {
+                    console.warn('Failed to set ground/demo assets with baseUrl:', e);
+                }
+            
+            // Setup position tracking
+            setInterval(updatePosition, 1000);
+            
+            log('3D World initialized', 'status');
+        }
+
+    // Canvas mapping: the original canvas.png is very large (22400 x 21966), tile size 32x32 px
+    // Backend places objects with: x = tx * tile_size / 10.0, z = ty * tile_size / 10.0
+    // We'll use the same scale to keep 2D paint coordinates and 3D world coordinates consistent.
+    const CANVAS_PX_W = 22400;
+    const CANVAS_PX_H = 21966;
+    const TILE_PX = 32;
+    // world units per tile used by backend
+    const BACKEND_TILE_WORLD = TILE_PX / 10.0; // matches backend's tx * tile_size / 10.0
+    // baseTileWorldSize is a visual multiplier controlled by UI; default 1.0 matches backend scale
+    let baseTileWorldSize = 1.0;
+
+        function onTileScaleChange(val){
+            const s = parseFloat(val);
+            document.getElementById('tile-scale-label').textContent = s.toFixed(2);
+            // adjust ground plane size / texture repeat to reflect scale
+            const worldW = (CANVAS_PX_W / TILE_PX) * BACKEND_TILE_WORLD * baseTileWorldSize * s;
+            const worldH = (CANVAS_PX_H / TILE_PX) * BACKEND_TILE_WORLD * baseTileWorldSize * s;
+            const ground = document.getElementById('ground-plane');
+            if (ground) {
+                ground.setAttribute('width', worldW);
+                ground.setAttribute('height', worldH);
+                // set texture once across the plane
+                ground.setAttribute('material', `src: /data/canvas.png; repeat: 1 1; side: double`);
+                // Because A-Frame plane is centered at its position, shift it so that
+                // canvas (0,0) which is top-left in 2D maps to the plane's top-left.
+                // We'll position the plane's center at (worldW/2, 0, worldH/2) and then
+                // set camera/start position accordingly.
+                // Note: backend's object positions assume origin at top-left mapping to positive x/z.
+                ground.setAttribute('position', `${worldW/2} -0.5 ${worldH/2}`);
+            }
+        }
+
+        function onMoveSpeedChange(val){
+            const s = parseFloat(val);
+            document.getElementById('move-speed-label').textContent = s.toFixed(1);
+            // update wasd-controls speed - A-Frame's default uses acceleration/velocity; set fly speed multiplier
+            const cam = document.querySelector('#camera');
+            if (cam) {
+                // wasd-controls doesn't expose speed directly in older versions; we set acceleration to scale
+                cam.setAttribute('wasd-controls', `fly: true; acceleration: ${80 * s}`);
+            }
+        }
+
+        // initialize UI values
+        window.addEventListener('load', ()=>{
+            onTileScaleChange(document.getElementById('tile-scale').value);
+            onMoveSpeedChange(document.getElementById('move-speed').value);
+        });
+        
+        function createGrid() {
+            const gridContainer = document.querySelector('#grid-system');
+            const gridSize = 100;
+            const gridSpacing = 10;
+            
+            // Create grid lines
+            for (let i = -gridSize; i <= gridSize; i += gridSpacing) {
+                // X-axis lines
+                const lineX = document.createElement('a-box');
+                lineX.setAttribute('position', `${i} 0 0`);
+                lineX.setAttribute('width', '0.1');
+                lineX.setAttribute('height', '0.1');
+                lineX.setAttribute('depth', gridSize * 2);
+                lineX.setAttribute('color', '#444444');
+                gridContainer.appendChild(lineX);
+                
+                // Z-axis lines
+                const lineZ = document.createElement('a-box');
+                lineZ.setAttribute('position', `0 0 ${i}`);
+                lineZ.setAttribute('width', gridSize * 2);
+                lineZ.setAttribute('height', '0.1');
+                lineZ.setAttribute('depth', '0.1');
+                lineZ.setAttribute('color', '#444444');
+                gridContainer.appendChild(lineZ);
+            }
+        }
+        
+        async function loadObjects() {
+            try {
+                log('Loading 3D objects...', 'info');
+                
+                    // fetch objects from backend FastAPI endpoint
+                    const response = await fetch(baseUrl + '/api/objects.json');
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+                
+                objects = await response.json();
+                // Objects from backend already use world-unit placement (see backend.job_thread)
+                renderObjects();
+                
+                log(`✅ Loaded ${objects.length} objects`, 'status');
+                
+            } catch (error) {
+                log(`❌ Failed to load objects: ${error.message}`, 'error');
+            }
+        }
+        
+        function renderObjects() {
+            // Clear existing objects
+            objectsContainer.innerHTML = '';
+            
+            // Update UI
+            document.getElementById('object-count').textContent = objects.length;
+            
+            // Render object list
+            const objectList = document.getElementById('object-list');
+            objectList.innerHTML = '';
+            
+            // compute display scale multiplier (backend world units -> displayed units)
+            const scaleMultiplier = baseTileWorldSize * parseFloat(document.getElementById('tile-scale').value || '1.0');
+
+            objects.forEach((obj, index) => {
+                // Create 3D object
+                const entity = document.createElement('a-entity');
+                entity.setAttribute('id', `object-${obj.id || index}`);
+                // Apply display scaling so object positions align with ground plane scaling
+                const px = (obj.x || 0) * scaleMultiplier;
+                const py = (obj.y || 0);
+                const pz = (obj.z || 0) * scaleMultiplier;
+                entity.setAttribute('position', `${px} ${py + 1} ${pz}`);
+                
+                if (obj.glb_url && obj.glb_url !== '/assets/glb/GLB_PLACEHOLDER') {
+                    if (obj.glb_url.endsWith('.obj')) {
+                        // Handle OBJ files
+                        entity.setAttribute('obj-model', `obj: ${obj.glb_url}`);
+                    } else {
+                        // Handle GLB files
+                        entity.setAttribute('gltf-model', obj.glb_url);
+                    }
+                    entity.setAttribute('scale', '0.5 0.5 0.5');
+                } else {
+                    // Fallback: colored box
+                    entity.setAttribute('geometry', 'primitive: box; width: 1; height: 1; depth: 1');
+                    const colors = ['#ff4444', '#44ff44', '#4444ff', '#ffff44', '#ff44ff'];
+                    entity.setAttribute('material', `color: ${colors[index % colors.length]}`);
+                }
+                
+                // Add shadow
+                entity.setAttribute('shadow', 'cast: true; receive: true');
+                
+                // Add click interaction
+                entity.setAttribute('cursor-listener', '');
+                entity.addEventListener('click', () => {
+                    focusOnObject(obj);
+                });
+                
+                objectsContainer.appendChild(entity);
+                
+                // Add to UI list
+                const listItem = document.createElement('div');
+                listItem.className = 'object-item';
+                listItem.textContent = `${obj.id || index}: (${obj.x}, ${obj.y}, ${obj.z})`;
+                listItem.onclick = () => focusOnObject(obj);
+                objectList.appendChild(listItem);
+            });
+        }
+        
+        function focusOnObject(obj) {
+            const targetPos = `${obj.x} ${(obj.y || 0) + 5} ${(obj.z || 0) + 5}`;
+            cameraRig.setAttribute('animation', `property: position; to: ${targetPos}; dur: 1000`);
+            log(`Focusing on object at (${obj.x}, ${obj.y}, ${obj.z})`, 'info');
+        }
+        
+        function updatePosition() {
+            if (cameraRig) {
+                const pos = cameraRig.getAttribute('position');
+                const posText = `${Math.round(pos.x)}, ${Math.round(pos.y)}, ${Math.round(pos.z)}`;
+                document.getElementById('position').textContent = posText;
+            }
+        }
+        
+        function refreshObjects() {
+            log('Refreshing objects...', 'info');
+            loadObjects();
+        }
+        
+        function resetCamera() {
+            cameraRig.setAttribute('position', '0 5 10');
+            camera.setAttribute('rotation', '0 0 0');
+            log('Camera reset', 'info');
+        }
+        
+        function log(message, type = 'info') {
+            const status = document.getElementById('status');
+            const timestamp = new Date().toLocaleTimeString();
+            
+            status.innerHTML = `<span class="${type}">[${timestamp}] ${message}</span>`;
+            console.log(`[${type.toUpperCase()}] ${message}`);
+        }
+        
+        // Register cursor listener component
+        AFRAME.registerComponent('cursor-listener', {
+            init: function () {
+                this.el.addEventListener('mouseenter', function () {
+                    this.setAttribute('scale', '1.1 1.1 1.1');
+                });
+                this.el.addEventListener('mouseleave', function () {
+                    this.setAttribute('scale', '1 1 1');
+                });
+            }
+        });
+    </script>
+</body>
+</html>

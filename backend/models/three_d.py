@@ -14,6 +14,8 @@ import subprocess
 import shutil
 import os
 from ..config import settings
+import sys
+from datetime import datetime
 
 try:
     import trimesh
@@ -55,8 +57,11 @@ def generate_glb_from_image(image_bytes: bytes, out_path: Path, quality: str = '
         if not triposr_py.exists():
             # maybe entry is just filename in dir
             triposr_py = triposr_dir / 'run.py'
+        # Use the same Python interpreter that's running this process to ensure
+        # external tool runs in the same virtualenv (avoids ModuleNotFoundError
+        # when dependencies are installed in the server venv).
         cmd = [
-            'python', str(triposr_py), str(inp),
+            sys.executable, str(triposr_py), str(inp),
             '--output-dir', str(outdir),
             '--model-save-format', 'glb'
         ]
@@ -67,19 +72,38 @@ def generate_glb_from_image(image_bytes: bytes, out_path: Path, quality: str = '
 
         # run
         try:
-            subprocess.check_call(cmd, cwd=str(triposr_dir))
-        except subprocess.CalledProcessError as e:
-            # Fall back: TripoSR failed (missing deps). Create a minimal placeholder GLB
-            # so the rest of the pipeline can proceed in environments without TripoSR.
-            # Log the original error via RuntimeError chained.
-            err = e
-            # create a simple placeholder glb that embeds the PNG as bytes (not a valid glb, but usable as marker)
-            placeholder = out_path.parent / (out_path.stem + '_fallback.glb')
+            # capture output for debugging
+            res = subprocess.run(cmd, cwd=str(triposr_dir), stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+            if res.returncode != 0:
+                # save output for debugging
+                logdir = settings.cache_path / 'triposr_logs'
+                logdir.mkdir(parents=True, exist_ok=True)
+                ts = datetime.utcnow().strftime('%Y%m%dT%H%M%SZ')
+                logpath = logdir / f'triposr_{ts}.log'
+                with open(logpath, 'w', encoding='utf-8') as lf:
+                    lf.write(res.stdout or '')
+
+                # Fall back: TripoSR failed (missing deps). Create a minimal placeholder GLB
+                placeholder = out_path.parent / (out_path.stem + '_fallback.glb')
+                with open(placeholder, 'wb') as f:
+                    f.write(b'GLB_FALLBACK_PLACEHOLDER\n')
+                    f.write(b'PROMPT_IMAGE_PNG:\n')
+                    with open(inp, 'rb') as ib:
+                        f.write(ib.read())
+                shutil.move(str(placeholder), str(out_path))
+                return out_path
+        except FileNotFoundError as e:
+            # very unlikely since we use sys.executable, but handle defensively
+            logdir = settings.cache_path / 'triposr_logs'
+            logdir.mkdir(parents=True, exist_ok=True)
+            ts = datetime.utcnow().strftime('%Y%m%dT%H%M%SZ')
+            logpath = logdir / f'triposr_missing_{ts}.log'
+            with open(logpath, 'w', encoding='utf-8') as lf:
+                lf.write(str(e))
+            # create fallback placeholder
+            placeholder = out_path.parent / (out_path.stem + '_fallback_nopython.glb')
             with open(placeholder, 'wb') as f:
-                f.write(b'GLB_FALLBACK_PLACEHOLDER\n')
-                f.write(b'PROMPT_IMAGE_PNG:\n')
-                with open(inp, 'rb') as ib:
-                    f.write(ib.read())
+                f.write(b'GLB_FALLBACK_NO_PYTHON\n')
             shutil.move(str(placeholder), str(out_path))
             return out_path
 
@@ -89,7 +113,7 @@ def generate_glb_from_image(image_bytes: bytes, out_path: Path, quality: str = '
             shutil.move(str(found), str(out_path))
             return out_path
 
-        # No .glb: try to find .obj or .ply and convert to glb using trimesh
+        # No .glb: try to find .obj and use it directly or convert to glb
         obj_path = None
         ply_path = None
         tex_path = None
@@ -102,7 +126,19 @@ def generate_glb_from_image(image_bytes: bytes, out_path: Path, quality: str = '
                 # pick a texture if present
                 tex_path = p
 
-        if obj_path or ply_path:
+        if obj_path:
+            # Use OBJ directly - change output extension to .obj
+            obj_out_path = out_path.parent / (out_path.stem + '.obj')
+            shutil.move(str(obj_path), str(obj_out_path))
+            
+            # Also move texture if present
+            if tex_path:
+                tex_out_path = out_path.parent / (out_path.stem + tex_path.suffix)
+                shutil.move(str(tex_path), str(tex_out_path))
+            
+            return obj_out_path
+            
+        elif ply_path:
             if trimesh is None:
                 # cannot convert without trimesh; create fallback marker
                 placeholder = out_path.parent / (out_path.stem + '_fallback_no_trimesh.glb')
@@ -113,11 +149,9 @@ def generate_glb_from_image(image_bytes: bytes, out_path: Path, quality: str = '
 
             try:
                 # load as scene to preserve materials/textures
-                source = str(obj_path) if obj_path else str(ply_path)
+                source = str(ply_path)
                 scene = trimesh.load(source, force='scene')
-                # if texture file exists, trimesh may already reference it via mtl; otherwise, textures are left as-is
                 glb_bytes = scene.export(file_type='glb')
-                # trimesh may return bytes or a bytearray
                 if isinstance(glb_bytes, (bytes, bytearray)):
                     with open(out_path, 'wb') as f:
                         f.write(glb_bytes)

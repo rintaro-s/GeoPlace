@@ -89,3 +89,4 @@ temp/
 
 # Custom local files
 /local_settings.py
+/backend/cache/

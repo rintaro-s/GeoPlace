@@ -52,7 +52,7 @@ ASSET_GLB_DIR = ROOT / 'assets' / 'glb'
 STATE_DIR = ROOT / 'backend' / 'cache'
 CANVAS_PATH = DATA_DIR / 'canvas.png'
 OBJECTS_JSON = ASSET_GLB_DIR / 'objects.json'
-TILE_PX = 32
+TILE_PX = settings.tile_px
 
 app = FastAPI(title="GeoPlace API")
 app.add_middleware(
@@ -110,6 +110,36 @@ manager = ConnectionManager()
 # executor 定義位置修正
 executor = ThreadPoolExecutor(max_workers=settings.max_workers)
 
+# Main asyncio event loop reference (set on startup) - used to schedule broadcasts from worker threads
+MAIN_LOOP = None
+
+def schedule_broadcast(message: dict) -> None:
+    """Schedule a broadcast from a non-async/thread context.
+
+    Uses run_coroutine_threadsafe when MAIN_LOOP is available (worker threads).
+    If MAIN_LOOP isn't set, attempts to create a local task (best-effort).
+    """
+    try:
+        if MAIN_LOOP is not None:
+            import asyncio as _asyncio
+            _asyncio.run_coroutine_threadsafe(manager.broadcast(message), MAIN_LOOP)
+        else:
+            # Best-effort fallback: try to create a task on the current loop
+            import asyncio as _asyncio
+            loop = _asyncio.get_event_loop()
+            if loop.is_running():
+                loop.create_task(manager.broadcast(message))
+            else:
+                # last resort: run briefly (will create and close a loop)
+                _asyncio.run(manager.broadcast(message))
+    except Exception:
+        # Swallow exceptions to avoid crashing worker threads; errors will be logged by FastAPI if needed
+        pass
+
+# Lock for protecting objects.json read/write across threads
+import threading as _threading
+OBJECTS_LOCK = _threading.Lock()
+
 # model load state
 model_status = {
     'sd_loaded': False,
@@ -142,13 +172,16 @@ def save_canvas(img: Image.Image):
 
 def save_objects(objects: list):
     ASSET_GLB_DIR.mkdir(parents=True, exist_ok=True)
-    with open(OBJECTS_JSON, 'w', encoding='utf-8') as f:
-        json.dump(objects, f, ensure_ascii=False, indent=2)
+    # protect concurrent writes to objects.json
+    with OBJECTS_LOCK:
+        with open(OBJECTS_JSON, 'w', encoding='utf-8') as f:
+            json.dump(objects, f, ensure_ascii=False, indent=2)
 
 
 def load_objects() -> list:
     if OBJECTS_JSON.exists():
-        return json.loads(OBJECTS_JSON.read_text(encoding='utf-8'))
+        with OBJECTS_LOCK:
+            return json.loads(OBJECTS_JSON.read_text(encoding='utf-8'))
     return []
 
 
@@ -168,6 +201,32 @@ def write_tile_to_canvas(payload: PaintPayload):
     tile_img.putdata([tuple(p) for p in payload.pixels])
     tile_path = tiles_dir / f'tile_{payload.tile_x}_{payload.tile_y}.png'
     tile_img.save(tile_path)
+    # Also update disk cache and in-memory cache so that /api/tile serves the latest tile
+    try:
+        cache_dir = settings.cache_path / 'images'
+        cache_dir.mkdir(parents=True, exist_ok=True)
+        cache_path = cache_dir / tile_path.name
+        tile_bytes = tile_path.read_bytes()
+        cache_path.write_bytes(tile_bytes)
+        # update in-memory cache if available
+        try:
+            key = f"{payload.tile_x},{payload.tile_y}"
+            if len(tile_memory_cache) < MAX_MEMORY_CACHE:
+                tile_memory_cache[key] = tile_bytes
+            else:
+                # simple LRU-like touch: remove oldest then insert
+                try:
+                    first_key = next(iter(tile_memory_cache))
+                    del tile_memory_cache[first_key]
+                except Exception:
+                    pass
+                tile_memory_cache[key] = tile_bytes
+        except NameError:
+            # tile_memory_cache not defined yet; ignore
+            pass
+    except Exception:
+        # Do not fail tile save if cache update fails
+        pass
     # mark modified
     modified_tiles.add((payload.tile_x, payload.tile_y))
 
@@ -249,13 +308,14 @@ def _run_light_job(job_id: str, tiles: List[Tuple[int,int]], refine: bool):
             objects = [o for o in objects if o['id'] != entry_id]
             objects.append(entry)
             current_jobs[job_id]['progress'] = f'{idx+1}/{len(tiles)} light generated'
-            asyncio.run(manager.broadcast({'type':'job_progress','job_id':job_id,'stage':'light','entry':entry}))
+            # use thread-safe scheduling to broadcast from worker thread
+            schedule_broadcast({'type':'job_progress','job_id':job_id,'stage':'light','entry':entry})
         except Exception as e:
             current_jobs[job_id]['progress'] = f'error: {e}'
     save_objects(objects)
     modified_tiles.difference_update(tiles)
     current_jobs[job_id]['status'] = 'light_ready'
-    asyncio.run(manager.broadcast({'type':'job_done','job_id':job_id,'stage':'light'}))
+    schedule_broadcast({'type':'job_done','job_id':job_id,'stage':'light'})
 
     # refine スケジュール
     if refine and settings.enable_refiner:
@@ -273,10 +333,10 @@ def _run_light_job(job_id: str, tiles: List[Tuple[int,int]], refine: bool):
                 obj['quality'] = 'refined'
                 obj['meta_refined'] = meta
                 current_jobs[job_id]['progress'] = f'{idx+1}/{len(tiles)} refined'
-                asyncio.run(manager.broadcast({'type':'job_progress','job_id':job_id,'stage':'refine','entry':obj}))
+                schedule_broadcast({'type':'job_progress','job_id':job_id,'stage':'refine','entry':obj})
             save_objects(objects_local)
             current_jobs[job_id]['status'] = 'refined_ready'
-            asyncio.run(manager.broadcast({'type':'job_done','job_id':job_id,'stage':'refine'}))
+            schedule_broadcast({'type':'job_done','job_id':job_id,'stage':'refine'})
         threading.Thread(target=_refine_job, daemon=True).start()
 
 
@@ -305,6 +365,146 @@ async def admin_clear_cache():
 @app.post('/api/admin/clear_cache')
 async def admin_clear_cache_wr():
     return await admin_clear_cache()
+
+@router.get('/tiles')
+async def list_tiles():
+    """List all available tiles"""
+    tiles = []
+    tile_dir = DATA_DIR / 'tiles'
+    if tile_dir.exists():
+        for tile_file in tile_dir.glob('tile_*.png'):
+            parts = tile_file.stem.split('_')
+            if len(parts) == 3:
+                try:
+                    x, y = int(parts[1]), int(parts[2])
+                    tiles.append({'x': x, 'y': y, 'url': f'/data/tiles/{tile_file.name}'})
+                except ValueError:
+                    continue
+    return tiles
+
+
+@router.get('/objects.json')
+async def api_objects():
+    """Return objects.json contents for clients"""
+    return load_objects()
+
+
+@app.get('/api/objects.json')
+async def api_objects_wr():
+    return await api_objects()
+
+import hashlib
+import os
+
+# Tile cache directory (configurable via settings.cache_path)
+# Per user request: prefer the legacy path E:\files\GeoPLace-tmp\images when it exists.
+legacy_paths = [Path(r"E:\files\GeoPLace-tmp\images")]
+preferred = settings.cache_path / 'images'
+# If the legacy path exists at all, prefer it (even if empty). This matches
+# environments where tiles are populated externally into the legacy folder.
+if any(p.exists() for p in legacy_paths):
+    TILE_CACHE_DIR = next(p for p in legacy_paths if p.exists())
+elif preferred.exists() and any(preferred.iterdir()):
+    TILE_CACHE_DIR = preferred
+else:
+    TILE_CACHE_DIR = preferred
+
+TILE_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+
+# In-memory cache for recently accessed tiles
+tile_memory_cache = {}
+MAX_MEMORY_CACHE = 500
+
+def get_tile_cache_path(tile_x: int, tile_y: int) -> Path:
+    """Get cache file path for a tile"""
+    return TILE_CACHE_DIR / f"tile_{tile_x}_{tile_y}.png"
+
+@router.get('/tile/{tile_x}/{tile_y}')
+async def get_tile_image(tile_x: int, tile_y: int):
+    """Extract and serve a specific tile from the main canvas with aggressive caching"""
+    from fastapi.responses import Response
+    from io import BytesIO
+    import time
+    tile_key = f"{tile_x},{tile_y}"
+    try:
+        # 1. Check memory cache first (fastest)about:blank#blockedE:\files\GeoPLace-tmp\images
+        if tile_key in tile_memory_cache:
+            tile_data = tile_memory_cache[tile_key]
+            return Response(content=tile_data, media_type='image/png', headers={
+                'Cache-Control': 'no-store',
+                'Content-Length': str(len(tile_data))
+            })
+        # 2. Prefer per-tile saved PNG in data/tiles. This prevents stale/placeholder
+        #    images that were previously written into the disk cache from masking
+        #    newly-saved user tiles.
+        tile_path = DATA_DIR / 'tiles' / f'tile_{tile_x}_{tile_y}.png'
+        if tile_path.exists():
+            tile_data = tile_path.read_bytes()
+            # Cache to disk and memory for faster subsequent reads
+            try:
+                cache_path = get_tile_cache_path(tile_x, tile_y)
+                cache_path.write_bytes(tile_data)
+            except Exception:
+                pass
+            if len(tile_memory_cache) < MAX_MEMORY_CACHE:
+                tile_memory_cache[tile_key] = tile_data
+            return Response(content=tile_data, media_type='image/png', headers={
+                'Cache-Control': 'no-store',
+                'Content-Length': str(len(tile_data))
+            })
+        # 3. Check disk cache (older placeholder files may exist)
+        cache_path = get_tile_cache_path(tile_x, tile_y)
+        if cache_path.exists():
+            for _ in range(3):
+                tile_data = cache_path.read_bytes()
+                # PNGヘッダーが壊れていたら再生成
+                if tile_data[:8] == b'\x89PNG\r\n\x1a\n':
+                    break
+                time.sleep(0.05)
+            else:
+                # 3回リトライしても壊れてたら削除して再生成
+                try:
+                    cache_path.unlink()
+                except Exception:
+                    pass
+                tile_data = None
+            if tile_data:
+                if len(tile_memory_cache) < MAX_MEMORY_CACHE:
+                    tile_memory_cache[tile_key] = tile_data
+                return Response(content=tile_data, media_type='image/png', headers={
+                    'Cache-Control': 'no-store',
+                    'Content-Length': str(len(tile_data))
+                })
+        # 4. Return default red tile (do NOT persist this to disk cache)
+        tile_img = Image.new('RGBA', (settings.tile_px, settings.tile_px), (255, 0, 0, 255))
+        buffer = BytesIO()
+        tile_img.save(buffer, format='PNG', optimize=True, compress_level=1)
+        tile_data = buffer.getvalue()
+        # cache only in-memory to avoid polluting disk cache with placeholders
+        if len(tile_memory_cache) < MAX_MEMORY_CACHE:
+            tile_memory_cache[tile_key] = tile_data
+        return Response(content=tile_data, media_type='image/png', headers={
+            'Cache-Control': 'no-store',
+            'Content-Length': str(len(tile_data))
+        })
+    except Exception as e:
+        print(f"Error serving tile {tile_x},{tile_y}: {e}")
+        tile_img = Image.new('RGBA', (settings.tile_px, settings.tile_px), (255, 0, 0, 255))
+        buffer = BytesIO()
+        tile_img.save(buffer, format='PNG', optimize=True, compress_level=1)
+        tile_data = buffer.getvalue()
+        return Response(content=tile_data, media_type='image/png', headers={
+            'Cache-Control': 'no-store',
+            'Content-Length': str(len(tile_data))
+        })
+
+@app.get('/api/tile/{tile_x}/{tile_y}')
+async def get_tile_image_wr(tile_x: int, tile_y: int):
+    return await get_tile_image(tile_x, tile_y)
+
+@app.get('/api/tiles')
+async def get_tiles_wr():
+    return await list_tiles()
 
 # ---- API Routes ----
 @router.post('/paint')
@@ -386,15 +586,18 @@ async def get_glb(filename: str):
         return FileResponse(path)
     return JSONResponse({'error': 'not found'}, status_code=404)
 
-if __name__ == '__main__':
-    # start uvicorn
-    uvicorn.run('backend.main:app', host='0.0.0.0', port=8001, reload=False)
-
-
 @app.on_event('startup')
 async def startup_load_models():
     """Background load SD model to warm cache. Updates model_status."""
     import threading
+    import asyncio as _asyncio
+    # expose the running loop to worker threads
+    global MAIN_LOOP
+    try:
+        MAIN_LOOP = _asyncio.get_running_loop()
+    except RuntimeError:
+        MAIN_LOOP = None
+
     def _load():
         try:
             from .models import sd as sdmod
