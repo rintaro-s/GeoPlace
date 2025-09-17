@@ -1,591 +1,64 @@
-<!DOCTYPE html>
+<!doctype html>
 <html>
 <head>
-  <meta charset="UTF-8">
-  <title>dot2world - 3D世界</title>
+  <meta charset="utf-8" />
+  <title>GeoPlace World</title>
   <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/gh/donmccurdy/aframe-extras@v6.1.1/dist/aframe-extras.min.js"></script>
   <style>
-    body { margin: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #1a1a1a; }
-    #ui { position: fixed; top: 10px; left: 10px; z-index: 1000; background: rgba(0,0,0,0.9); padding: 15px; border-radius: 8px; color: white; min-width: 320px; max-height: 90vh; overflow-y: auto; }
-    #ui h3 { margin: 0 0 10px 0; font-size: 18px; color: #4CAF50; }
-    .ui-section { margin-bottom: 15px; padding: 12px; background: rgba(255,255,255,0.1); border-radius: 6px; border-left: 3px solid #4CAF50; }
-    .ui-section h4 { margin: 0 0 10px 0; font-size: 14px; color: #81C784; }
-    .control-group { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
-    .control-group label { min-width: 80px; font-size: 12px; color: #ddd; }
-    .control-group input, .control-group button, .control-group select { padding: 6px 10px; border: 1px solid #555; border-radius: 4px; background: #333; color: white; font-size: 12px; }
-    .control-group input { width: 100px; }
-    .control-group button { background: #4CAF50; cursor: pointer; min-width: 80px; }
-    .control-group button:hover { background: #45a049; }
-    .control-group button:active { background: #3d8b40; }
-    .speed-button { background: #FF9800; }
-    .speed-button:hover { background: #F57C00; }
-    .teleport-button { background: #2196F3; }
-    .teleport-button:hover { background: #1976D2; }
-    #status { font-size: 11px; color: #ccc; background: rgba(0,0,0,0.7); padding: 10px; border-radius: 4px; max-height: 120px; overflow-y: auto; border: 1px solid #555; }
-    #minimap { position: fixed; bottom: 10px; right: 10px; width: 220px; height: 220px; background: rgba(0,0,0,0.9); border: 2px solid #4CAF50; border-radius: 8px; padding: 5px; }
-    #minimapCanvas { width: 100%; height: 100%; border-radius: 4px; }
-    .preset-location { background: #2196F3; margin: 3px 0; }
-    .preset-location:hover { background: #1976D2; }
-    .toggle-ui { position: fixed; top: 10px; right: 10px; z-index: 1001; background: rgba(0,0,0,0.8); color: white; border: none; padding: 10px; border-radius: 5px; cursor: pointer; }
-    .hidden { display: none; }
-    .coordinate-display { background: rgba(0,0,0,0.8); color: #4CAF50; font-family: monospace; font-size: 11px; }
+    body { margin:0; }
+    #hud { position:absolute; top:8px; left:8px; background:rgba(0,0,0,0.55); color:#fff; padding:6px; font-size:12px; max-width:300px; }
   </style>
 </head>
 <body>
-  <button class="toggle-ui" onclick="toggleUI()">UI切替</button>
-  
-  <div id="ui">
-    <h3>3D世界ナビゲーション</h3>
-    
-    <div class="ui-section">
-      <h4>移動制御</h4>
-      <div class="control-group">
-        <label>移動速度:</label>
-        <input type="range" id="moveSpeed" min="0.5" max="20" value="5" step="0.5" />
-        <span id="speedDisplay">5.0</span>
-      </div>
-      <div class="control-group">
-        <label>回転速度:</label>
-        <input type="range" id="lookSpeed" min="0.5" max="5" value="2" step="0.1" />
-        <span id="lookSpeedDisplay">2.0</span>
-      </div>
-      <div class="control-group">
-        <button id="resetPosition">原点に戻る</button>
-        <button class="speed-button" id="boostMode">ブーストモード</button>
-      </div>
-    </div>
-    
-    <div class="ui-section">
-      <h4>テレポート</h4>
-      <div class="control-group">
-        <label>X座標:</label>
-        <input type="number" id="teleportX" value="0" step="1" />
-        <label>Y座標:</label>
-        <input type="number" id="teleportY" value="5" step="1" />
-        <label>Z座標:</label>
-        <input type="number" id="teleportZ" value="0" step="1" />
-      </div>
-      <div class="control-group">
-        <button class="teleport-button" id="teleportBtn">テレポート実行</button>
-        <button id="saveLocation">現在位置を保存</button>
-      </div>
-      
-      <div style="margin-top: 10px;">
-        <button class="preset-location" onclick="teleportTo(0, 5, 0)">原点 (0, 5, 0)</button>
-        <button class="preset-location" onclick="teleportTo(50, 5, 50)">エリア1 (50, 50)</button>
-        <button class="preset-location" onclick="teleportTo(-50, 5, 50)">エリア2 (-50, 50)</button>
-        <button class="preset-location" onclick="teleportTo(0, 20, 100)">高台 (0, 20, 100)</button>
-        <button class="preset-location" onclick="teleportTo(0, 5, -100)">南部 (0, -100)</button>
-      </div>
-    </div>
-    
-    <div class="ui-section">
-      <h4>表示設定</h4>
-      <div class="control-group">
-        <label>視野角:</label>
-        <input type="range" id="fov" min="60" max="120" value="80" />
-        <span id="fovDisplay">80°</span>
-      </div>
-      <div class="control-group">
-        <button id="toggleFog">霧効果切替</button>
-        <button id="toggleGrid">グリッド切替</button>
-      </div>
-    </div>
-    
-    <div class="ui-section">
-      <h4>現在位置</h4>
-      <div class="coordinate-display" id="currentPosition">X: 0, Y: 5, Z: 0</div>
-      <div class="coordinate-display" id="currentRotation">回転: 0°</div>
-    </div>
-    
-    <div class="ui-section">
-      <h4>オブジェクト情報</h4>
-      <div id="objectInfo">オブジェクトをクリックして詳細を表示</div>
-      <div id="objectCount">読み込み済みオブジェクト: 0個</div>
-    </div>
-    
-    <div class="ui-section">
-      <h4>接続状態</h4>
-      <div id="status">初期化中...</div>
-    </div>
-  </div>
-  
-  <div id="minimap">
-    <canvas id="minimapCanvas" width="210" height="210"></canvas>
-    <div style="color: white; font-size: 10px; text-align: center; margin-top: 2px;">ミニマップ</div>
-  </div>
-  
-  <a-scene embedded style="height: 100vh; width: 100%;" 
-           vr-mode-ui="enabled: false" 
-           device-orientation-permission-ui="enabled: false">
-    
-    <!-- Sky -->
-    <a-sky color="#87CEEB"></a-sky>
-    
-    <!-- Lighting -->
-    <a-light type="ambient" color="#404040" intensity="0.4"></a-light>
-    <a-light type="directional" position="10 20 10" color="#ffffff" intensity="0.8"></a-light>
-    
-    <!-- Canvas texture asset -->
-    <a-assets>
-      <img id="canvasTexture" crossorigin="anonymous">
-    </a-assets>
-    
-    <!-- Ground plane with canvas texture -->
-    <a-plane id="groundPlane" position="0 0 0" rotation="-90 0 0" width="2000" height="2000" 
-             material="src: #canvasTexture; transparent: true; opacity: 0.8"></a-plane>
-    
-    <!-- Grid system -->
-    <a-entity id="grid"></a-entity>
-    
-    <!-- Player camera with WASD controls -->
-    <a-entity id="player" position="0 5 10">
-      <a-camera look-controls wasd-controls="acceleration: 100; fly: true">
-        <a-ring position="0 0 -1" radius-inner="0.005" radius-outer="0.01" color="white" opacity="0.7"></a-ring>
-      </a-camera>
+  <div id="hud">Connecting...</div>
+  <a-scene>
+    <a-entity position="0 1.6 5">
+      <a-entity camera look-controls wasd-controls></a-entity>
     </a-entity>
-
-    <!-- Objects container -->
-    <a-entity id="objects"></a-entity>
+    <a-entity id="objects-root"></a-entity>
+    <a-plane position="0 0 0" rotation="-90 0 0" width="1000" height="1000" color="#222"></a-plane>
+    <a-sky color="#111"></a-sky>
   </a-scene>
-  
   <script>
-    const root = document.getElementById('objects');
-    const statusEl = document.getElementById('status');
-    const objectInfoEl = document.getElementById('objectInfo');
-    const objectCountEl = document.getElementById('objectCount');
-    const player = document.getElementById('player');
-    
-    let WS_URL;
-    if (location.protocol === 'file:') {
-      WS_URL = 'ws://127.0.0.1:8001/ws';
-    } else {
-      WS_URL = (location.origin.replace(/^http/,'ws')) + '/ws';
-    }
-    
+    const root = document.getElementById('objects-root');
+    const hud = document.getElementById('hud');
+    const WS_URL = (location.origin.replace(/^http/,'ws')) + '/ws';
     let objects = [];
-    let flyMode = false;
-    
-    // Enhanced object rendering with better materials and interactions
+
     function renderObjects(objs){
       objects = objs;
       root.innerHTML='';
-      
-      objs.forEach((o, index) => {
+      objs.forEach(o=>{
         const e = document.createElement('a-entity');
-        
-        // Set model or fallback to primitive
-        if (o.glb_url && o.glb_url !== '/assets/glb/GLB_PLACEHOLDER') {
-          e.setAttribute('gltf-model', o.glb_url);
-        } else {
-          // Fallback to colored box for placeholder objects
-          e.setAttribute('geometry', 'primitive: box; width: 1; height: 1; depth: 1');
-          const colors = ['#4CAF50', '#2196F3', '#FF9800', '#E91E63', '#9C27B0'];
-          e.setAttribute('material', `color: ${colors[index % colors.length]}; roughness: 0.3; metalness: 0.1`);
-        }
-        
-        e.setAttribute('position', `${o.x} ${o.y + 0.5} ${o.z}`);
-        e.setAttribute('rotation', (o.rotation || [0,0,0]).join(' '));
-        const sc = o.scale || 1.0; 
-        e.setAttribute('scale', `${sc} ${sc} ${sc}`);
-        e.setAttribute('shadow', 'cast: true; receive: true');
-        
-        // Quality indicator
-        if (o.quality === 'refined') {
-          e.setAttribute('animation', 'property: rotation; to: 0 360 0; loop: true; dur: 10000');
-        }
-        
-        // Click interaction
-        e.setAttribute('class', 'clickable');
+        e.setAttribute('gltf-model', o.glb_url);
+        e.setAttribute('position', `${o.x} ${o.y} ${o.z}`);
+        e.setAttribute('rotation', o.rotation.join(' '));
+        const sc = o.scale || 1.0; e.setAttribute('scale', `${sc} ${sc} ${sc}`);
+        // quality color ring
+        if (o.quality === 'refined') e.setAttribute('material','color:#FFF;opacity:0.95');
         e.addEventListener('click', ()=>{
-          statusEl.innerHTML = `
-            <div class="status">📦 オブジェクト情報</div>
-            <div>ID: ${o.id}</div>
-            <div>品質: ${o.quality === 'refined' ? '高品質' : '標準'}</div>
-            <div>位置: (${o.x.toFixed(1)}, ${o.y.toFixed(1)}, ${o.z.toFixed(1)})</div>
-            <div>URL: ${o.glb_url}</div>
-          `;
+          hud.textContent = `id: ${o.id}\nquality: ${o.quality}\nurl: ${o.glb_url}`;
         });
-        
         root.appendChild(e);
       });
-      
-      objectInfoEl.textContent = `オブジェクト: ${objs.length}個`;
+      hud.textContent = `Objects: ${objs.length}`;
     }
-    
-    // Enhanced WebSocket handling
+
     function connectWS(){
       const ws = new WebSocket(WS_URL);
-      
-      ws.onmessage = ev => { 
-        try{ 
-          const msg = JSON.parse(ev.data); 
-          handleWS(msg);
-        } catch(e) { 
-          console.error('WebSocket message error:', e);
-        } 
-      };
-      
-      ws.onopen = () => {
-        statusEl.innerHTML = '<div class="status">✅ 接続完了</div><div>ワールドデータを読み込み中...</div>';
-      };
-      
-      ws.onclose = () => { 
-        statusEl.innerHTML = '<div class="error">❌ 接続切断</div><div>再接続中...</div>';
-        setTimeout(connectWS, 2000);
-      };
-      
-      ws.onerror = (error) => {
-        statusEl.innerHTML = '<div class="error">❌ 接続エラー</div>';
-        console.error('WebSocket error:', error);
-      };
+      ws.onmessage = ev => { try{ const msg=JSON.parse(ev.data); handleWS(msg);}catch(e){console.error(e);} };
+      ws.onopen = ()=> hud.textContent='Connected (waiting updates)';
+      ws.onclose = ()=> { hud.textContent='Reconnecting...'; setTimeout(connectWS,1500); };
     }
-    
     function handleWS(msg){
-      if (msg.type === 'hello') { 
-        renderObjects(msg.objects || []);
-        statusEl.innerHTML = '<div class="status">🌍 ワールド準備完了</div>';
-      }
-      
-      if (msg.type === 'job_progress') {
-        statusEl.innerHTML = `
-          <div class="status">⚙️ 生成中...</div>
-          <div>ジョブ: ${msg.job_id}</div>
-          <div>段階: ${msg.stage}</div>
-        `;
-      }
-      
-      if (msg.type === 'job_done') {
-        statusEl.innerHTML = '<div class="status">✅ 生成完了</div><div>ワールドを更新中...</div>';
-        // Reload objects
-        setTimeout(() => {
-          let baseUrl = '';
-          if (location.protocol === 'file:') {
-            baseUrl = 'http://127.0.0.1:8001';
-          }
-          fetch(baseUrl + '/api/objects.json')
-            .then(r => r.json())
-            .then(renderObjects)
-            .catch(e => console.error('Failed to reload objects:', e));
-        }, 1000);
+      if (msg.type==='hello'){ renderObjects(msg.objects); }
+      if (msg.type==='job_progress' || msg.type==='job_done'){
+        // 再取得
+        fetch('/api/objects.json').then(r=>r.json()).then(renderObjects);
       }
     }
-    
-    // Enhanced navigation and control system
-    let boostMode = false;
-    let fogEnabled = true;
-    let gridVisible = true;
-    let savedLocations = [];
-    
-    // Teleportation functionality
-    function teleportTo(x, y, z) {
-      player.setAttribute('position', `${x} ${y} ${z}`);
-      document.getElementById('teleportX').value = x;
-      document.getElementById('teleportY').value = y;
-      document.getElementById('teleportZ').value = z;
-      statusEl.innerHTML = `<div class="status">📍 テレポート完了</div><div>位置: (${x}, ${y}, ${z})</div>`;
-      updateMinimap();
-    }
-    
-    // Position and rotation tracking
-    function updatePosition() {
-      const pos = player.getAttribute('position');
-      const rot = player.getAttribute('rotation');
-      if (pos) {
-        document.getElementById('currentPosition').textContent = `X: ${pos.x.toFixed(1)}, Y: ${pos.y.toFixed(1)}, Z: ${pos.z.toFixed(1)}`;
-        document.getElementById('currentRotation').textContent = `回転: ${rot ? rot.y.toFixed(0) : 0}°`;
-        updateMinimap();
-      }
-    }
-    
-    // Update minimap with player position, objects, and canvas overview
-    function updateMinimap() {
-      const minimapCanvas = document.getElementById('minimapCanvas');
-      const ctx = minimapCanvas.getContext('2d');
-      
-      // Clear minimap
-      ctx.fillStyle = '#1a1a1a';
-      ctx.fillRect(0, 0, 210, 210);
-      
-      // Draw canvas texture as background (scaled down)
-      const canvasImg = document.getElementById('canvasTexture');
-      if (canvasImg && canvasImg.complete) {
-        ctx.save();
-        ctx.globalAlpha = 0.3;
-        ctx.drawImage(canvasImg, 5, 5, 200, 200);
-        ctx.restore();
-      }
-      
-      // Draw border
-      ctx.strokeStyle = '#444';
-      ctx.lineWidth = 2;
-      ctx.strokeRect(1, 1, 208, 208);
-      
-      // Get player position
-      const pos = player.getAttribute('position');
-      const rot = player.getAttribute('rotation');
-      
-      // Map world coordinates to minimap (world is 2000x2000, canvas is 20000x20000)
-      const mapSize = 200;
-      const worldSize = 2000;
-      const scale = mapSize / worldSize;
-      
-      const playerX = 105 + (pos.x * scale);
-      const playerZ = 105 + (pos.z * scale);
-      
-      // Draw objects with quality indicators
-      objects.forEach(obj => {
-        const objX = 105 + (obj.x * scale);
-        const objZ = 105 + (obj.z * scale);
-        
-        // Color based on quality
-        ctx.fillStyle = obj.quality === 'refined' ? '#4CAF50' : '#FFC107';
-        ctx.beginPath();
-        ctx.arc(objX, objZ, obj.quality === 'refined' ? 3 : 2, 0, 2 * Math.PI);
-        ctx.fill();
-      });
-      
-      // Draw player position
-      ctx.fillStyle = '#ff4444';
-      ctx.beginPath();
-      ctx.arc(playerX, playerZ, 4, 0, 2 * Math.PI);
-      ctx.fill();
-      
-      // Draw player direction
-      const angle = (rot.y * Math.PI) / 180;
-      ctx.strokeStyle = '#ff4444';
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.moveTo(playerX, playerZ);
-      ctx.lineTo(
-        playerX + Math.sin(angle) * 15,
-        playerZ + Math.cos(angle) * 15
-      );
-      ctx.stroke();
-      
-      // Draw coordinate grid lines
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
-      ctx.lineWidth = 1;
-      for (let i = 0; i <= 10; i++) {
-        const x = 5 + (i * 20);
-        ctx.beginPath();
-        ctx.moveTo(x, 5);
-        ctx.lineTo(x, 205);
-        ctx.stroke();
-        
-        ctx.beginPath();
-        ctx.moveTo(5, x);
-        ctx.lineTo(205, x);
-        ctx.stroke();
-      }
-    }
-    
-    // Create 3D grid system
-    function createGridSystem() {
-      const xGrid = document.getElementById('x-grid');
-      const zGrid = document.getElementById('z-grid');
-      
-      // Clear existing grid
-      xGrid.innerHTML = '';
-      zGrid.innerHTML = '';
-      
-      const gridSize = 200;
-      const gridStep = 10;
-      
-      for (let i = -gridSize; i <= gridSize; i += gridStep) {
-        // X-axis grid lines
-        const xLine = document.createElement('a-cylinder');
-        xLine.setAttribute('mixin', 'grid-line');
-        xLine.setAttribute('position', `${i} 0 0`);
-        xLine.setAttribute('rotation', '0 0 90');
-        xGrid.appendChild(xLine);
-        
-        // Z-axis grid lines
-        const zLine = document.createElement('a-cylinder');
-        zLine.setAttribute('mixin', 'grid-line');
-        zLine.setAttribute('position', `0 0 ${i}`);
-        zGrid.appendChild(zLine);
-      }
-    }
-    
-    // Event listeners
-    document.getElementById('teleportBtn').onclick = () => {
-      const x = parseFloat(document.getElementById('teleportX').value) || 0;
-      const y = parseFloat(document.getElementById('teleportY').value) || 5;
-      const z = parseFloat(document.getElementById('teleportZ').value) || 0;
-      teleportTo(x, y, z);
-    };
-    
-    document.getElementById('resetPosition').onclick = () => {
-      teleportTo(0, 5, 10);
-      camera.setAttribute('rotation', '0 0 0');
-    };
-    
-    document.getElementById('boostMode').onclick = () => {
-      boostMode = !boostMode;
-      const speed = boostMode ? parseFloat(document.getElementById('moveSpeed').value) * 3 : parseFloat(document.getElementById('moveSpeed').value);
-      player.setAttribute('movement-controls', `fly: true; constrainToNavMesh: false; speed: ${speed}`);
-      document.getElementById('boostMode').textContent = boostMode ? 'ブースト解除' : 'ブーストモード';
-      document.getElementById('boostMode').style.background = boostMode ? '#F44336' : '#FF9800';
-    };
-    
-    document.getElementById('saveLocation').onclick = () => {
-      const pos = player.getAttribute('position');
-      if (pos) {
-        savedLocations.push({x: pos.x, y: pos.y, z: pos.z, name: `位置${savedLocations.length + 1}`});
-        statusEl.innerHTML = `<div class="status">💾 位置を保存しました</div><div>保存数: ${savedLocations.length}</div>`;
-      }
-    };
-    
-    document.getElementById('toggleFog').onclick = () => {
-      fogEnabled = !fogEnabled;
-      const scene = document.getElementById('scene');
-      if (fogEnabled) {
-        scene.setAttribute('fog', 'type: linear; color: #87CEEB; near: 100; far: 500');
-      } else {
-        scene.removeAttribute('fog');
-      }
-      document.getElementById('toggleFog').textContent = fogEnabled ? '霧効果OFF' : '霧効果ON';
-    };
-    
-    document.getElementById('toggleGrid').onclick = () => {
-      gridVisible = !gridVisible;
-      document.getElementById('grid-system').setAttribute('visible', gridVisible);
-      document.getElementById('toggleGrid').textContent = gridVisible ? 'グリッドOFF' : 'グリッドON';
-    };
-    
-    // Speed controls
-    document.getElementById('moveSpeed').oninput = (e) => {
-      const speed = parseFloat(e.target.value);
-      document.getElementById('speedDisplay').textContent = speed.toFixed(1);
-      const actualSpeed = boostMode ? speed * 3 : speed;
-      player.setAttribute('movement-controls', `fly: true; constrainToNavMesh: false; speed: ${actualSpeed}`);
-    };
-    
-    document.getElementById('lookSpeed').oninput = (e) => {
-      const speed = parseFloat(e.target.value);
-      document.getElementById('lookSpeedDisplay').textContent = speed.toFixed(1);
-      player.setAttribute('look-controls', `pointerLockEnabled: true; touchEnabled: true; mouseSensitivity: ${speed}`);
-    };
-    
-    document.getElementById('fov').oninput = (e) => {
-      const fov = parseInt(e.target.value);
-      document.getElementById('fovDisplay').textContent = fov + '°';
-      camera.setAttribute('camera', `fov: ${fov}; near: 0.1; far: 1000`);
-    };
-    
-    // UI toggle functionality
-    function toggleUI() {
-      const ui = document.getElementById('ui');
-      ui.classList.toggle('hidden');
-    }
-    
-    window.toggleUI = toggleUI;
-    
-    // Enhanced keyboard controls
-    document.addEventListener('keydown', (e) => {
-      const pos = player.getAttribute('position');
-      let newY = pos.y;
-      
-      switch(e.code) {
-        case 'Space':
-          e.preventDefault();
-          newY = Math.min(pos.y + 3, 200); // Max height limit
-          player.setAttribute('position', `${pos.x} ${newY} ${pos.z}`);
-          break;
-        case 'ShiftLeft':
-        case 'ShiftRight':
-          e.preventDefault();
-          newY = Math.max(pos.y - 3, 0.5); // Min height limit
-          player.setAttribute('position', `${pos.x} ${newY} ${pos.z}`);
-          break;
-        case 'KeyH':
-          // Toggle UI with H key
-          toggleUI();
-          break;
-        case 'KeyM':
-          // Toggle minimap with M key
-          const minimap = document.getElementById('minimap');
-          minimap.style.display = minimap.style.display === 'none' ? 'block' : 'none';
-          break;
-      }
-    });
-    
-    // Create grid helper
-    function createGrid() {
-      const gridEl = document.getElementById('grid');
-      const gridSize = 500;
-      const gridDivisions = 50;
-      const step = gridSize / gridDivisions;
-      
-      for (let i = -gridDivisions; i <= gridDivisions; i++) {
-        // X-axis lines
-        const lineX = document.createElement('a-entity');
-        lineX.setAttribute('geometry', `primitive: box; width: ${gridSize * 2}; height: 0.01; depth: 0.1`);
-        lineX.setAttribute('material', 'color: #4a4a4a; opacity: 0.3');
-        lineX.setAttribute('position', `0 0.01 ${i * step}`);
-        gridEl.appendChild(lineX);
-        
-        // Z-axis lines
-        const lineZ = document.createElement('a-entity');
-        lineZ.setAttribute('geometry', `primitive: box; width: 0.1; height: 0.01; depth: ${gridSize * 2}`);
-        lineZ.setAttribute('material', 'color: #4a4a4a; opacity: 0.3');
-        lineZ.setAttribute('position', `${i * step} 0.01 0`);
-        gridEl.appendChild(lineZ);
-      }
-    }
-    
-    // Initialize
-    document.addEventListener('DOMContentLoaded', () => {
-      // Set up base URL for API requests
-      let baseUrl = '';
-      if (location.protocol === 'file:') {
-        baseUrl = 'http://127.0.0.1:8001';
-      }
-      
-      // Load canvas texture with CORS support
-      const canvasTexture = document.getElementById('canvasTexture');
-      if (location.protocol === 'file:') {
-        // When running locally, use the full URL to the backend
-        canvasTexture.crossOrigin = 'anonymous';
-        canvasTexture.src = baseUrl + '/data/canvas.png';
-        console.log('Loading canvas from:', canvasTexture.src);
-      } else {
-        // In production, use relative path
-        canvasTexture.src = '/data/canvas.png';
-      }
-      
-      // Add error handling for canvas loading
-      canvasTexture.onerror = function() {
-        console.error('Error loading canvas texture');
-        statusEl.innerHTML += '<div class="error">キャンバスの読み込みに失敗しました。バックエンドが起動しているか確認してください。</div>';
-      };
-      
-      createGridSystem();
-      connectWS();
-      
-      // Update position every 100ms for smooth tracking
-      setInterval(updatePosition, 100);
-      
-      // Load initial objects
-      fetch(baseUrl + '/api/objects.json')
-        .then(r => r.json())
-        .then(renderObjects)
-        .catch(e => {
-          console.log('No initial objects found');
-          renderObjects([]);
-        });
-      
-      // Initialize minimap
-      updateMinimap();
-      
-      statusEl.innerHTML = '<div class="status">🌍 3D世界が準備完了しました</div><div>WASD: 移動, Space/Shift: 上下, H: UI切替, M: ミニマップ切替</div>';
-    });
-    
-    // Make functions globally available
-    window.teleportTo = teleportTo;
-    window.toggleUI = toggleUI;
+
+    connectWS();
   </script>
 </body>
 </html>

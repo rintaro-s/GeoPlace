@@ -6,8 +6,8 @@ SD_STEPS_LIGHT: 20
 SD_STEPS_HIGH: 50
 MAX_CONCURRENT_WORKERS: 4
 PER_TILE_COOLDOWN: 5
-CANVAS_WIDTH: 20000
-CANVAS_HEIGHT: 20000
+CANVAS_WIDTH: 22400
+CANVAS_HEIGHT: 21966
 ASSETS_DIR: assets
 GLB_SUBDIR: glb
 CACHE_DIR: backend/cache
@@ -20,7 +20,3 @@ TRIPOSR_PY: "run.py"
 TRIPOSR_BAKE_TEXTURE: true
 # Stable Diffusion のモデル ID (diffusers)
 SD_MODEL_ID: "runwayml/stable-diffusion-v1-5"
-# LM Studio 設定
-LM_STUDIO_BASE_URL: "http://localhost:1234/v1/chat/completions"
-LM_STUDIO_MODEL: "gemma-3-4b-it"
-LM_STUDIO_TIMEOUT: 30
