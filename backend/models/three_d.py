@@ -80,7 +80,7 @@ def generate_glb_from_image(image_bytes: bytes, out_path: Path, quality: str = '
             shutil.move(str(found), str(out_path))
             return out_path
 
-        # No .glb: try to find .obj or .ply and convert to glb using trimesh
+        # No .glb: try to find .obj and use it directly or convert to glb
         obj_path = None
         ply_path = None
         tex_path = None
@@ -93,7 +93,19 @@ def generate_glb_from_image(image_bytes: bytes, out_path: Path, quality: str = '
                 # pick a texture if present
                 tex_path = p
 
-        if obj_path or ply_path:
+        if obj_path:
+            # Use OBJ directly - change output extension to .obj
+            obj_out_path = out_path.parent / (out_path.stem + '.obj')
+            shutil.move(str(obj_path), str(obj_out_path))
+            
+            # Also move texture if present
+            if tex_path:
+                tex_out_path = out_path.parent / (out_path.stem + tex_path.suffix)
+                shutil.move(str(tex_path), str(tex_out_path))
+            
+            return obj_out_path
+            
+        elif ply_path:
             if trimesh is None:
                 # cannot convert without trimesh; create fallback marker
                 placeholder = out_path.parent / (out_path.stem + '_fallback_no_trimesh.glb')
@@ -104,11 +116,9 @@ def generate_glb_from_image(image_bytes: bytes, out_path: Path, quality: str = '
 
             try:
                 # load as scene to preserve materials/textures
-                source = str(obj_path) if obj_path else str(ply_path)
+                source = str(ply_path)
                 scene = trimesh.load(source, force='scene')
-                # if texture file exists, trimesh may already reference it via mtl; otherwise, textures are left as-is
                 glb_bytes = scene.export(file_type='glb')
-                # trimesh may return bytes or a bytearray
                 if isinstance(glb_bytes, (bytes, bytearray)):
                     with open(out_path, 'wb') as f:
                         f.write(glb_bytes)

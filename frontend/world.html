@@ -175,9 +175,16 @@
       objs.forEach((o, index) => {
         const e = document.createElement('a-entity');
         
-        // Set model or fallback to primitive
+        // Set model or fallback to primitive - support both GLB and OBJ
         if (o.glb_url && o.glb_url !== '/assets/glb/GLB_PLACEHOLDER') {
-          e.setAttribute('gltf-model', o.glb_url);
+          if (o.glb_url.endsWith('.obj')) {
+            e.setAttribute('obj-model', `obj: ${o.glb_url}`);
+            // Look for texture file with same name
+            const texUrl = o.glb_url.replace('.obj', '.png');
+            e.setAttribute('obj-model', `obj: ${o.glb_url}; mtl: ${texUrl}`);
+          } else {
+            e.setAttribute('gltf-model', o.glb_url);
+          }
         } else {
           // Fallback to colored box for placeholder objects
           e.setAttribute('geometry', 'primitive: box; width: 1; height: 1; depth: 1');

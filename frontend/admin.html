@@ -133,6 +133,26 @@
     </div>
     
     <div class="section">
+      <h3>🗃️ モデル管理</h3>
+      <button id="btn-list-models">モデル一覧表示</button>
+      <button id="btn-delete-all-models" style="background: #f44336;">全モデル削除</button>
+      <div class="status-box" id="model-list">モデル一覧がここに表示されます</div>
+    </div>
+    
+    <div class="section">
+      <h3>🖼️ 画像管理</h3>
+      <button id="btn-list-images">画像一覧表示</button>
+      <button id="btn-delete-all-images" style="background: #f44336;">全画像削除</button>
+      <div class="status-box" id="image-list">画像一覧がここに表示されます</div>
+    </div>
+    
+    <div class="section">
+      <h3>👁️ プレビュー</h3>
+      <button id="btn-preview-latest">最新モデルプレビュー</button>
+      <div class="status-box" id="preview-area">プレビューがここに表示されます</div>
+    </div>
+
+    <div class="section">
       <h3>🔗 クイックリンク</h3>
       <button onclick="window.open('/frontend/paint.html', '_blank')">🎨 ペイントツール</button>
       <button onclick="window.open('/frontend/world.html', '_blank')">🌍 3Dワールド</button>
@@ -258,6 +278,129 @@
     
     document.getElementById('btn-stop-jobs').onclick = async () => {
       showStatus('generation-status', 'ジョブ停止機能は未実装です', 'warning');
+    };
+
+    // Model management
+    document.getElementById('btn-list-models').onclick = async () => {
+      try {
+        showStatus('model-list', 'モデル一覧を取得中...', 'info');
+        const res = await fetch(baseUrl + '/assets/glb/');
+        const text = await res.text();
+        
+        // Parse directory listing or use API if available
+        let models = [];
+        try {
+          const apiRes = await fetch(baseUrl + '/api/models');
+          models = await apiRes.json();
+        } catch {
+          // Fallback: parse HTML directory listing
+          const parser = new DOMParser();
+          const doc = parser.parseFromString(text, 'text/html');
+          const links = doc.querySelectorAll('a[href$=".glb"], a[href$=".obj"]');
+          models = Array.from(links).map(link => ({
+            name: link.textContent,
+            url: link.href,
+            type: link.href.endsWith('.glb') ? 'GLB' : 'OBJ'
+          }));
+        }
+        
+        let html = '<div class="success">モデル一覧:</div>';
+        if (models.length === 0) {
+          html += '<div>モデルが見つかりません</div>';
+        } else {
+          models.forEach(model => {
+            html += `<div>📦 ${model.name || model.url} (${model.type || 'Unknown'})</div>`;
+          });
+        }
+        
+        document.getElementById('model-list').innerHTML = html;
+      } catch (error) {
+        showError('model-list', error);
+      }
+    };
+
+    document.getElementById('btn-delete-all-models').onclick = async () => {
+      if (!confirm('本当に全てのモデルを削除しますか？この操作は取り消せません。')) return;
+      
+      try {
+        showStatus('model-list', '全モデルを削除中...', 'warning');
+        const res = await fetch(baseUrl + '/api/admin/delete_models', {method: 'POST'});
+        const result = await res.json();
+        showStatus('model-list', `削除完了: ${formatJson(result)}`, 'success');
+      } catch (error) {
+        showError('model-list', error);
+      }
+    };
+
+    // Image management
+    document.getElementById('btn-list-images').onclick = async () => {
+      try {
+        showStatus('image-list', '画像一覧を取得中...', 'info');
+        const res = await fetch(baseUrl + '/data/tiles/');
+        const text = await res.text();
+        
+        // Parse directory listing
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(text, 'text/html');
+        const links = doc.querySelectorAll('a[href$=".png"], a[href$=".jpg"], a[href$=".jpeg"]');
+        const images = Array.from(links).map(link => link.textContent);
+        
+        let html = '<div class="success">画像一覧:</div>';
+        if (images.length === 0) {
+          html += '<div>画像が見つかりません</div>';
+        } else {
+          images.forEach(img => {
+            html += `<div>🖼️ ${img}</div>`;
+          });
+        }
+        
+        document.getElementById('image-list').innerHTML = html;
+      } catch (error) {
+        showError('image-list', error);
+      }
+    };
+
+    document.getElementById('btn-delete-all-images').onclick = async () => {
+      if (!confirm('本当に全ての画像を削除しますか？この操作は取り消せません。')) return;
+      
+      try {
+        showStatus('image-list', '全画像を削除中...', 'warning');
+        const res = await fetch(baseUrl + '/api/admin/delete_images', {method: 'POST'});
+        const result = await res.json();
+        showStatus('image-list', `削除完了: ${formatJson(result)}`, 'success');
+      } catch (error) {
+        showError('image-list', error);
+      }
+    };
+
+    // Preview functionality
+    document.getElementById('btn-preview-latest').onclick = async () => {
+      try {
+        showStatus('preview-area', '最新モデルを検索中...', 'info');
+        const res = await fetch(baseUrl + '/api/objects.json');
+        const objects = await res.json();
+        
+        if (objects.length === 0) {
+          showStatus('preview-area', 'プレビューできるモデルがありません', 'warning');
+          return;
+        }
+        
+        const latest = objects[objects.length - 1];
+        const previewHtml = `
+          <div class="success">最新モデルプレビュー:</div>
+          <div>ID: ${latest.id}</div>
+          <div>位置: (${latest.x}, ${latest.y}, ${latest.z})</div>
+          <div>品質: ${latest.quality}</div>
+          <div>URL: ${latest.glb_url}</div>
+          <div style="margin-top: 10px;">
+            <a href="${latest.glb_url}" target="_blank" style="color: #4CAF50;">モデルファイルを開く</a>
+          </div>
+        `;
+        
+        document.getElementById('preview-area').innerHTML = previewHtml;
+      } catch (error) {
+        showError('preview-area', error);
+      }
     };
     
     // Auto-refresh stats every 30 seconds

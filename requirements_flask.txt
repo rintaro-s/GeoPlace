@@ -1,0 +1,12 @@
+Flask==2.3.3
+Flask-SocketIO==5.3.6
+python-socketio==5.8.0
+python-engineio==4.7.1
+Pillow==10.0.1
+requests==2.31.0
+diffusers==0.21.4
+torch==2.1.0
+torchvision==0.16.0
+transformers==4.35.2
+accelerate==0.24.1
+trimesh==4.0.5
