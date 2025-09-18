@@ -27,3 +27,11 @@ TRIPOSR_PYTHON: "C:\\Users\\s-rin\\Documents\\GitHub\\GeoPlace\\venv-triposr\\Sc
 # Stable Diffusion のモデル ID (diffusers)
 SD_MODEL_ID: "runwayml/stable-diffusion-v1-5"
 SD_VENV_PYTHON: "C:\\Users\\s-rin\\Documents\\GitHub\\GeoPlace\\venv-sd\\Scripts\\python.exe"
+
+# VLM (Vision Language Model) 設定
+# VLM_URL: LMStudio/Gemma3 の HTTP エンドポイント（設定すれば HTTP POST で呼び出し）
+VLM_URL: "http://localhost:1234/v1/chat/completions"  # LMStudio の標準エンドポイント
+#VLM_URL: "http://127.0.0.1:8002"  # ローカルテスト用 mock VLM サーバ
+VLM_TOKEN: null  # 認証トークン（LMStudio で必要な場合）
+VLM_TIMEOUT: 15  # タイムアウト秒数
+VLM_RETRIES: 3   # リトライ回数

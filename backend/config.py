@@ -39,6 +39,16 @@ class Settings:
         self.SD_MODEL_ID = d.get('SD_MODEL_ID', 'runwayml/stable-diffusion-v1-5')
         # Path to an external python executable for SD worker (optional)
         self.SD_VENV_PYTHON = d.get('SD_VENV_PYTHON', None)
+        # VLM (Gemma3 / LMStudio) settings
+        # VLM_URL: if present, the pipeline will POST image bytes (base64 JSON) to this URL
+        # and expect a JSON response with fields: category, colors, size, orientation, details
+        self.VLM_URL = d.get('VLM_URL', None)
+        # Optional auth token to include as Authorization: Bearer <token>
+        self.VLM_TOKEN = d.get('VLM_TOKEN', None)
+        self.VLM_TIMEOUT = d.get('VLM_TIMEOUT', 10)
+        self.VLM_RETRIES = d.get('VLM_RETRIES', 2)
+        # VLM mode: 'image_b64' (default), 'openai_chat' (LMStudio chat-like messages), or 'multipart'
+        self.VLM_MODE = d.get('VLM_MODE', 'image_b64')
 
     @property
     def glb_dir(self) -> Path:

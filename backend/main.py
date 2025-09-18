@@ -28,6 +28,7 @@ except Exception:
 import threading
 from fastapi.staticfiles import StaticFiles
 from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import TimeoutError as _TO
 try:
     # when run as a package (python -m backend.main) relative imports work
     from .config import settings
@@ -35,6 +36,7 @@ try:
 except Exception:
     # when executed as a script (python backend/main.py) __package__ may be None
     # add project root to sys.path and import by absolute package name
+    from concurrent.futures import TimeoutError as _TO
     import sys
     proj_root = Path(__file__).resolve().parent.parent
     if str(proj_root) not in sys.path:
@@ -376,7 +378,13 @@ def _run_light_job(job_id: str, tiles: List[Tuple[int,int]], refine: bool):
                     glb_name = Path(obj['glb_url']).name
                     light_path = settings.glb_dir / glb_name
                     print(f'[JOB {job_id}] refining {entry_id} from {light_path}')
-                    refined_path, meta = pipeline.run_refine_pipeline(light_path)
+                    # Run refine in the executor with a bounded timeout to avoid long hangs.
+                    REFINE_TIMEOUT = getattr(settings, 'REFINE_TIMEOUT_SEC', 60)
+                    try:
+                        fut = executor.submit(pipeline.run_refine_pipeline, light_path)
+                        refined_path, meta = fut.result(timeout=REFINE_TIMEOUT)
+                    except _TO:
+                        raise RuntimeError(f'refine timed out after {REFINE_TIMEOUT}s')
                     obj['glb_url'] = f'/assets/{settings.glb_subdir}/{refined_path.name}'
                     obj['quality'] = 'refined'
                     obj['meta_refined'] = meta

@@ -17,6 +17,9 @@ from ..config import settings
 import sys
 from datetime import datetime
 import traceback
+import time
+import json
+import uuid
 
 try:
     import trimesh
@@ -45,8 +48,11 @@ def generate_glb_from_image(image_bytes: bytes, out_path: Path, quality: str = '
     with tempfile.TemporaryDirectory() as td:
         td_path = Path(td)
         inp = td_path / 'input.png'
+        # keep a copy of original bytes in memory in case external processes
+        # remove the temporary file while we're still working
+        orig_image_bytes = image_bytes
         with open(inp, 'wb') as f:
-            f.write(image_bytes)
+            f.write(orig_image_bytes)
 
         # prepare output dir
         outdir = td_path / 'out'
@@ -129,6 +135,57 @@ def generate_glb_from_image(image_bytes: bytes, out_path: Path, quality: str = '
                         lf.write(f"Snapshot of TripoSR outdir copied to: {debug_snapshot_dir}\n")
                 except Exception:
                     pass
+                # Prefer searching the persisted snapshot if copy succeeded. This
+                # avoids race conditions where the original temporary outdir is
+                # cleaned up or its contents are transient. We'll switch the
+                # working outdir reference to the snapshot for subsequent
+                # discovery and copying logic.
+                try:
+                    outdir = debug_snapshot_dir
+                    with open(logpath, 'a', encoding='utf-8') as lf:
+                        lf.write(f"Switched discovery root to snapshot dir: {outdir}\n")
+                except Exception:
+                    pass
+                # If TripoSR wrote outputs into a nested numeric folder (e.g. out/0/*),
+                # flatten those files into the snapshot root to make discovery simpler
+                try:
+                    # look for single-directory nests (common pattern: '0')
+                    children = [p for p in outdir.iterdir() if p.is_dir()]
+                    if len(children) == 1:
+                        nested = children[0]
+                        moved = []
+                        for p in nested.rglob('*'):
+                            if p.is_file():
+                                dest = outdir / p.name
+                                # avoid overwriting; if exists, prefix with subdir name
+                                if dest.exists():
+                                    dest = outdir / (nested.name + '_' + p.name)
+                                try:
+                                    shutil.move(str(p), str(dest))
+                                    moved.append((str(p), str(dest)))
+                                except Exception:
+                                    try:
+                                        shutil.copy(str(p), str(dest))
+                                        moved.append((str(p), str(dest)))
+                                    except Exception:
+                                        pass
+                        # attempt to remove the now-empty nested dir
+                        try:
+                            nested.rmdir()
+                        except Exception:
+                            pass
+                        if moved:
+                            try:
+                                with open(logpath, 'a', encoding='utf-8') as lf:
+                                    lf.write(f"Flattened snapshot: moved {moved}\n")
+                            except Exception:
+                                pass
+                except Exception:
+                    try:
+                        with open(logpath, 'a', encoding='utf-8') as lf:
+                            lf.write(f"Failed to flatten snapshot dir {outdir}: {traceback.format_exc()}\n")
+                    except Exception:
+                        pass
             except Exception as e:
                 try:
                     with open(logpath, 'a', encoding='utf-8') as lf:
@@ -147,10 +204,16 @@ def generate_glb_from_image(image_bytes: bytes, out_path: Path, quality: str = '
                     mtl_path = out_path.parent / mtl_name
                     tex_name = out_path.stem + '_fallback.png'
                     tex_path = out_path.parent / tex_name
-                    # write texture (copy input PNG)
-                    with open(inp, 'rb') as ib:
-                        tex_bytes = ib.read()
-                    tex_path.write_bytes(tex_bytes)
+                    # write texture (prefer any texture produced by TripoSR,
+                    # otherwise fall back to the original image bytes)
+                    try:
+                        if inp.exists():
+                            tex_path.write_bytes(inp.read_bytes())
+                        else:
+                            tex_path.write_bytes(orig_image_bytes)
+                    except Exception:
+                        # last resort: write orig bytes
+                        tex_path.write_bytes(orig_image_bytes)
                     # write MTL referencing the texture
                     with open(mtl_path, 'w', encoding='utf-8') as mf:
                         mf.write(f"newmtl fallback\nmap_Kd {tex_name}\n")
@@ -260,7 +323,11 @@ def generate_glb_from_image(image_bytes: bytes, out_path: Path, quality: str = '
             tex_name = out_path.stem + '_fallback.png'
             tex_out = out_path.parent / tex_name
             if tex_src is not None and tex_src.exists():
-                shutil.copy(str(tex_src), str(tex_out))
+                try:
+                    shutil.copy(str(tex_src), str(tex_out))
+                except Exception:
+                    # if copy fails (maybe file vanished), write from orig bytes
+                    tex_out.write_bytes(orig_image_bytes)
             # write MTL referencing the texture
             with open(mtl_path, 'w', encoding='utf-8') as mf:
                 mf.write(f"newmtl fallback\nmap_Kd {tex_name}\n")
@@ -418,18 +485,60 @@ def generate_glb_from_image(image_bytes: bytes, out_path: Path, quality: str = '
     # Implement a robust discovery + copy workflow with retries and fallbacks.
     attempts = []
 
+    def is_file_stable(p: Path, checks: int = 3, interval: float = 0.5) -> bool:
+        """Return True if file exists and its size is stable across checks."""
+        try:
+            last = p.stat().st_size
+        except Exception:
+            return False
+        for _ in range(checks):
+            time.sleep(interval)
+            try:
+                cur = p.stat().st_size
+            except Exception:
+                return False
+            if cur != last:
+                last = cur
+                continue
+        return True
+
+    def atomic_copy(src: Path, dest: Path) -> bool:
+        """Copy src -> dest atomically by writing to temp and os.replace. Return True on success."""
+        try:
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            tmp = dest.parent / (dest.name + f'.tmp-{uuid.uuid4().hex}')
+            shutil.copy(str(src), str(tmp))
+            os.replace(str(tmp), str(dest))
+            return True
+        except Exception:
+            try:
+                if tmp.exists():
+                    tmp.unlink()
+            except Exception:
+                pass
+            return False
+
     def try_copy(src: Path, dest: Path) -> bool:
-        """Try to move, fallback to copy+unlink, return True on success."""
+        # wait for file to stabilize before copying
+        if not is_file_stable(src, checks=2, interval=0.5):
+            # try one more time quickly
+            if not is_file_stable(src, checks=1, interval=0.2):
+                return False
+        # attempt atomic copy
+        if atomic_copy(src, dest):
+            try:
+                # try to remove original if on same filesystem
+                src.unlink()
+            except Exception:
+                pass
+            return True
+        # fallback to move (less atomic) then copy
         try:
             shutil.move(str(src), str(dest))
             return True
         except Exception:
             try:
                 shutil.copy(str(src), str(dest))
-                try:
-                    src.unlink()
-                except Exception:
-                    pass
                 return True
             except Exception:
                 return False
@@ -440,73 +549,151 @@ def generate_glb_from_image(image_bytes: bytes, out_path: Path, quality: str = '
     snapshot_dir = out_snapshot_base / ts
     snapshot_dir.mkdir(parents=True, exist_ok=True)
 
-    # discovery strategies (ordered): glb recursive, any obj/ply anywhere, nested numeric dirs, filename contains 'mesh'
+    # discovery strategies (ordered): glb recursive, any obj/ply anywhere, filename contains 'mesh', nested dirs
     strategies = []
-    strategies.append(lambda d: list(d.rglob('*.glb')))
-    strategies.append(lambda d: list(d.rglob('*.obj')))
-    strategies.append(lambda d: list(d.rglob('*.ply')))
+    strategies.append(lambda d: list(d.rglob('*') if False else []))  # placeholder to keep indices stable
+    strategies.append(lambda d: [p for p in d.rglob('*') if p.suffix.lower() == '.glb'])
+    strategies.append(lambda d: [p for p in d.rglob('*') if p.suffix.lower() == '.obj'])
+    strategies.append(lambda d: [p for p in d.rglob('*') if p.suffix.lower() == '.ply'])
     strategies.append(lambda d: [p for p in d.rglob('*') if 'mesh' in p.name.lower()])
-    # include nested numeric dirs e.g., out/0/*
     strategies.append(lambda d: [p for sub in d.iterdir() if sub.is_dir() for p in sub.rglob('*')])
 
-    found_any = False
-    for strat_idx, strat in enumerate(strategies, start=1):
-        candidates = []
+    # validation helpers
+    def validate_obj(path: Path) -> bool:
         try:
-            candidates = strat(outdir)
-        except Exception as e:
-            try:
-                with open(logpath, 'a', encoding='utf-8') as lf:
-                    lf.write(f"Strategy {strat_idx} raised: {e}\n{traceback.format_exc()}\n")
-            except Exception:
-                pass
+            txt = path.read_text(encoding='utf-8', errors='ignore')
+            verts = sum(1 for l in txt.splitlines() if l.startswith('v '))
+            return verts > 4
+        except Exception:
+            return False
 
-        # filter files only
-        candidates = [p for p in candidates if p.exists() and p.is_file()]
+    max_total_seconds = 60
+    deadline = time.time() + max_total_seconds
+    max_rounds = 5
+    round_no = 0
+    found_any = False
+
+    # Try multiple rounds with backoff to capture transient files; bounded by deadline and max_rounds
+    while time.time() < deadline and round_no < max_rounds:
+        round_no += 1
         try:
             with open(logpath, 'a', encoding='utf-8') as lf:
-                lf.write(f"Strategy {strat_idx} candidates: {[str(p) for p in candidates]}\n")
+                lf.write(f"Discovery round {round_no} starting; deadline in {int(deadline - time.time())}s\n")
         except Exception:
             pass
 
-        for c in candidates:
-            # copy into snapshot and then install to expected out_path
-            dest_snapshot = snapshot_dir / c.name
-            success = try_copy(c, dest_snapshot)
-            if not success:
+        for strat_idx, strat in enumerate(strategies, start=1):
+            candidates = []
+            try:
+                candidates = strat(outdir)
+            except Exception as e:
                 try:
                     with open(logpath, 'a', encoding='utf-8') as lf:
-                        lf.write(f"Failed to copy candidate {c} to snapshot {dest_snapshot}\n")
+                        lf.write(f"Strategy {strat_idx} raised: {e}\n{traceback.format_exc()}\n")
                 except Exception:
                     pass
-                continue
 
-            # also copy to out_path location (obj or glb)
-            if c.suffix.lower() == '.glb':
-                final_dest = out_path
-            else:
-                final_dest = out_path.with_suffix(c.suffix.lower())
+            # filter files only and ensure exists
+            candidates = [p for p in candidates if p.exists() and p.is_file()]
+            try:
+                with open(logpath, 'a', encoding='utf-8') as lf:
+                    lf.write(f"Round {round_no} Strategy {strat_idx} candidates: {[str(p) for p in candidates]}\n")
+            except Exception:
+                pass
 
-            success2 = try_copy(dest_snapshot, final_dest)
-            attempts.append((str(c), str(dest_snapshot), str(final_dest), success, success2))
-            if success2:
-                found_any = True
-                try:
-                    with open(logpath, 'a', encoding='utf-8') as lf:
-                        lf.write(f"Installed {c} -> {final_dest}\n")
-                except Exception:
-                    pass
-                # return appropriate Path
-                if final_dest.suffix.lower() == '.obj':
-                    return final_dest
-                if final_dest.suffix.lower() == '.glb':
-                    return final_dest
+            for c in candidates:
+                # copy into snapshot (atomic) and then install to expected out_path
+                dest_snapshot = snapshot_dir / (c.name)
+                if try_copy(c, dest_snapshot):
+                    # validate if obj
+                    if dest_snapshot.suffix.lower() == '.obj' and not validate_obj(dest_snapshot):
+                        try:
+                            with open(logpath, 'a', encoding='utf-8') as lf:
+                                lf.write(f"Rejected OBJ (too few verts): {dest_snapshot}\n")
+                        except Exception:
+                            pass
+                        continue
 
-    # if we reached here, no strategies succeeded
+                    # atomic install to final
+                    if c.suffix.lower() == '.glb':
+                        final_dest = out_path
+                    else:
+                        final_dest = out_path.with_suffix(c.suffix.lower())
+
+                    if try_copy(dest_snapshot, final_dest):
+                        try:
+                            with open(logpath, 'a', encoding='utf-8') as lf:
+                                lf.write(f"Installed {dest_snapshot} -> {final_dest} (round {round_no} strat {strat_idx})\n")
+                        except Exception:
+                            pass
+                        # record metadata
+                        meta = {
+                            'source': str(c),
+                            'snapshot': str(dest_snapshot),
+                            'final': str(final_dest),
+                            'round': round_no,
+                            'strategy': strat_idx,
+                            'timestamp': datetime.utcnow().isoformat()
+                        }
+                        try:
+                            (snapshot_dir / 'meta.json').write_text(json.dumps(meta), encoding='utf-8')
+                        except Exception:
+                            pass
+                        if final_dest.suffix.lower() == '.obj':
+                            return final_dest
+                        if final_dest.suffix.lower() == '.glb':
+                            return final_dest
+                else:
+                    try:
+                        with open(logpath, 'a', encoding='utf-8') as lf:
+                            lf.write(f"Failed to snapshot candidate {c} to {dest_snapshot}\n")
+                    except Exception:
+                        pass
+
+        # exponential backoff before next round
+        sleep_for = min(2 ** round_no, 8)
+        time.sleep(sleep_for)
+
+    # if we reached here, give up and log attempts
     try:
         with open(logpath, 'a', encoding='utf-8') as lf:
-            lf.write(f"All discovery strategies failed. Attempts: {attempts}\n")
+            lf.write(f"All discovery rounds exhausted. No valid outputs found.\n")
     except Exception:
         pass
 
-    raise FileNotFoundError('TripoSR did not produce a .glb/.obj/.ply in its output dir')
+    # Fallback: create textured quad OBJ (ensure deterministic fallback path)
+    obj_name = out_path.stem + '_fallback.obj'
+    obj_path = out_path.parent / obj_name
+    mtl_name = out_path.stem + '_fallback.mtl'
+    mtl_path = out_path.parent / mtl_name
+    tex_name = out_path.stem + '_fallback.png'
+    tex_path = out_path.parent / tex_name
+    try:
+        if inp.exists():
+            tex_path.write_bytes(inp.read_bytes())
+        else:
+            tex_path.write_bytes(orig_image_bytes)
+    except Exception:
+        tex_path.write_bytes(orig_image_bytes)
+    with open(mtl_path, 'w', encoding='utf-8') as mf:
+        mf.write(f"newmtl fallback\nmap_Kd {tex_name}\n")
+    with open(obj_path, 'w', encoding='utf-8') as of:
+        of.write(f"mtllib {mtl_name}\n")
+        of.write("o fallback_quad\n")
+        of.write("v -0.5 -0.5 0.0\n")
+        of.write("v 0.5 -0.5 0.0\n")
+        of.write("v 0.5 0.5 0.0\n")
+        of.write("v -0.5 0.5 0.0\n")
+        of.write("vt 0 0\n")
+        of.write("vt 1 0\n")
+        of.write("vt 1 1\n")
+        of.write("vt 0 1\n")
+        of.write("usemtl fallback\n")
+        of.write("s off\n")
+        of.write("f 1/1 2/2 3/3 4/4\n")
+    try:
+        with open(logpath, 'a', encoding='utf-8') as lf:
+            lf.write(f"Using fallback textured quad: {obj_path}\n")
+    except Exception:
+        pass
+    return obj_path

@@ -95,6 +95,22 @@ messages\_content = [
 
 * 役割：カテゴリ（house/tree/river/person 等）、色（dominant colors）、相対大きさ（小/中/大）、向き（縦横、斜め）、特徴語句（窓, 屋根, 柱）を返す。
 
+### LMStudio(Gemma3) の接続方法
+
+このリポジトリは LMStudio の HTTP エンドポイントに画像を POST して構造化 JSON を得る実装を持ちます。`backend/config.yaml` の以下を設定してください：
+
+- VLM_URL: LMStudio のエンドポイント URL
+- VLM_TOKEN: 必要なら Bearer トークン
+- VLM_MODE: リクエスト形式。`image_b64`（デフォルト）、`openai_chat`（Chat-like messages）、`multipart`（ファイルアップロード）のいずれか。
+
+例（LMStudio が Chat 形式を期待する場合）:
+
+VLM_URL: "http://127.0.0.1:1234/v1/chat/completions"
+VLM_MODE: "openai_chat"
+VLM_TOKEN: "<your-token>"
+
+この設定でサーバを再起動すれば、パイプラインは LMStudio に画像を投げて属性を取得します。サーバ側のレスポンスは `backend/cache/vlm_logs` に保存されます。
+
 2. **CLIP（類似検索）**
 
 * 利用：VLM抽出のバックアップ／テンプレ検索用の埋め込み

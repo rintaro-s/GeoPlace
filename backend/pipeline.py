@@ -109,7 +109,35 @@ def run_light_pipeline(tile_image_bytes: bytes) -> Tuple[Path, Dict[str, Any]]:
         # 1. VLM attr
         print(f'[PIPELINE] extracting VLM attributes for {h}')
         attrs = vlm.extract_attributes(_vlm_model, tile_image_bytes)
-        prompt = vlm.to_prompt(attrs)
+        # persist VLM meta for debugging
+        try:
+            vlm_cache = settings.cache_path / 'vlm_logs'
+            vlm_cache.mkdir(parents=True, exist_ok=True)
+            vlm_cache_file = vlm_cache / f"{h}_vlm.json"
+            # If attrs.details contains a raw text fallback, also store it
+            raw_fallback = None
+            try:
+                if attrs and getattr(attrs, 'details', None):
+                    if len(attrs.details) > 0 and isinstance(attrs.details[0], str) and not attrs.details[0].strip().startswith('{'):
+                        # treat as raw textual fallback
+                        raw_fallback = attrs.details[0]
+            except Exception:
+                raw_fallback = None
+            vlm_cache_file.write_text(json.dumps({'attrs': dataclasses.asdict(attrs), 'prompt': vlm.to_prompt(attrs), 'raw_fallback': raw_fallback}, ensure_ascii=False, indent=2), encoding='utf-8')
+        except Exception:
+            pass
+
+        # If VLM returned only free-text in details[0], prefer using that raw
+        # text directly as a prompt for SD, otherwise use the structured prompt
+        prompt = None
+        try:
+            if attrs and getattr(attrs, 'details', None) and len(attrs.details) > 0 and isinstance(attrs.details[0], str) and len(attrs.details[0].strip()) > 20:
+                # Use raw VLM text as a fallback prompt (delegate strategy)
+                prompt = attrs.details[0].strip()
+            else:
+                prompt = vlm.to_prompt(attrs)
+        except Exception:
+            prompt = vlm.to_prompt(attrs)
 
         # 2. Optional: CLIP template search (placeholder)
         # In full impl this would search templates via CLIP; here we log intent

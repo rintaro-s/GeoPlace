@@ -379,5 +379,185 @@
       "refined": "156869895c328abefd53764a9ce6f1d440b7b0dce07ee8375e931b59ec25891b_refined.glb",
       "quality": "refined"
     }
+  },
+  {
+    "id": "tile_347_346",
+    "x": 1110.4,
+    "y": 0,
+    "z": 1107.2,
+    "rotation": [
+      0,
+      0,
+      0
+    ],
+    "scale": 1.0,
+    "glb_url": "/assets/glb/03e8c975a3c196b90a30ecb9d7464038becddcf494eec4081564b589ddb2a4e7_fallback_refined.glb",
+    "quality": "refined",
+    "meta": {
+      "hash": "03e8c975a3c196b90a30ecb9d7464038becddcf494eec4081564b589ddb2a4e7",
+      "attrs": {
+        "category": "object",
+        "colors": [
+          "gray"
+        ],
+        "size": "medium",
+        "orientation": "front",
+        "details": []
+      },
+      "prompt": "voxel-style object, medium, primary colors: gray, details: , low-poly, game-friendly, 3D render, front view",
+      "quality": "light",
+      "output": "03e8c975a3c196b90a30ecb9d7464038becddcf494eec4081564b589ddb2a4e7_light_fallback.obj",
+      "output_type": "obj"
+    },
+    "meta_refined": {
+      "base": "03e8c975a3c196b90a30ecb9d7464038becddcf494eec4081564b589ddb2a4e7_light_fallback.obj",
+      "refined": "03e8c975a3c196b90a30ecb9d7464038becddcf494eec4081564b589ddb2a4e7_fallback_refined.glb",
+      "quality": "refined"
+    }
+  },
+  {
+    "id": "tile_345_331",
+    "x": 1104.0,
+    "y": 0,
+    "z": 1059.2,
+    "rotation": [
+      0,
+      0,
+      0
+    ],
+    "scale": 1.0,
+    "glb_url": "/assets/glb/76defb7fb7e23c3ad896ecf1cfa3f05d43791e87e76295475727f43661606ec8_fallback_refined.glb",
+    "quality": "refined",
+    "meta": {
+      "hash": "76defb7fb7e23c3ad896ecf1cfa3f05d43791e87e76295475727f43661606ec8",
+      "attrs": {
+        "category": "object",
+        "colors": [
+          "gray"
+        ],
+        "size": "medium",
+        "orientation": "front",
+        "details": []
+      },
+      "prompt": "voxel-style object, medium, primary colors: gray, details: , low-poly, game-friendly, 3D render, front view",
+      "quality": "light",
+      "output": "76defb7fb7e23c3ad896ecf1cfa3f05d43791e87e76295475727f43661606ec8_light_fallback.obj",
+      "output_type": "obj"
+    },
+    "meta_refined": {
+      "base": "76defb7fb7e23c3ad896ecf1cfa3f05d43791e87e76295475727f43661606ec8_light_fallback.obj",
+      "refined": "76defb7fb7e23c3ad896ecf1cfa3f05d43791e87e76295475727f43661606ec8_fallback_refined.glb",
+      "quality": "refined"
+    }
+  },
+  {
+    "id": "tile_345_346",
+    "x": 1104.0,
+    "y": 0,
+    "z": 1107.2,
+    "rotation": [
+      0,
+      0,
+      0
+    ],
+    "scale": 1.0,
+    "glb_url": "/assets/glb/de73cb29b34fcbf1757a3bbbbcb20f1b8dbb1ca8fd17152393475d3483cf591e_refined.glb",
+    "quality": "refined",
+    "meta": {
+      "hash": "de73cb29b34fcbf1757a3bbbbcb20f1b8dbb1ca8fd17152393475d3483cf591e",
+      "attrs": {
+        "category": "abstract art",
+        "colors": [
+          "red",
+          "white",
+          "black"
+        ],
+        "size": "small",
+        "orientation": "vertical",
+        "details": "geometric shapes, minimalist"
+      },
+      "prompt": "voxel-style abstract art, small, primary colors: red, white, black, details: g, e, o, m, e, t, r, i, c,  , s, h, a, p, e, s, ,,  , m, i, n, i, m, a, l, i, s, t, low-poly, game-friendly, 3D render, front view",
+      "quality": "light",
+      "output": "de73cb29b34fcbf1757a3bbbbcb20f1b8dbb1ca8fd17152393475d3483cf591e_light.obj",
+      "output_type": "obj"
+    },
+    "meta_refined": {
+      "base": "de73cb29b34fcbf1757a3bbbbcb20f1b8dbb1ca8fd17152393475d3483cf591e_light.obj",
+      "refined": "de73cb29b34fcbf1757a3bbbbcb20f1b8dbb1ca8fd17152393475d3483cf591e_refined.glb",
+      "quality": "refined"
+    }
+  },
+  {
+    "id": "tile_339_341",
+    "x": 1084.8,
+    "y": 0,
+    "z": 1091.2,
+    "rotation": [
+      0,
+      0,
+      0
+    ],
+    "scale": 1.0,
+    "glb_url": "/assets/glb/776c7c66c663e8f179916bbc339f5e601598bd551b1395e3f39eb1e62264519e_refined.glb",
+    "quality": "refined",
+    "meta": {
+      "hash": "776c7c66c663e8f179916bbc339f5e601598bd551b1395e3f39eb1e62264519e",
+      "attrs": {
+        "category": "abstract",
+        "colors": [
+          "white",
+          "black"
+        ],
+        "size": "small",
+        "orientation": "square",
+        "details": "geometric shapes"
+      },
+      "prompt": "voxel-style abstract, small, primary colors: white, black, details: g, e, o, m, e, t, r, i, c,  , s, h, a, p, e, s, low-poly, game-friendly, 3D render, front view",
+      "quality": "light",
+      "output": "776c7c66c663e8f179916bbc339f5e601598bd551b1395e3f39eb1e62264519e_light.obj",
+      "output_type": "obj"
+    },
+    "meta_refined": {
+      "base": "776c7c66c663e8f179916bbc339f5e601598bd551b1395e3f39eb1e62264519e_light.obj",
+      "refined": "776c7c66c663e8f179916bbc339f5e601598bd551b1395e3f39eb1e62264519e_refined.glb",
+      "quality": "refined"
+    }
+  },
+  {
+    "id": "tile_346_348",
+    "x": 1107.2,
+    "y": 0,
+    "z": 1113.6,
+    "rotation": [
+      0,
+      0,
+      0
+    ],
+    "scale": 1.0,
+    "glb_url": "/assets/glb/ca4f6ee30f2acb1f2a2cb10edc34c508ac6084b535da03aafa82f3415f1c2888_refined.glb",
+    "quality": "refined",
+    "meta": {
+      "hash": "ca4f6ee30f2acb1f2a2cb10edc34c508ac6084b535da03aafa82f3415f1c2888",
+      "attrs": {
+        "category": "abstract",
+        "colors": [
+          "red",
+          "white",
+          "black"
+        ],
+        "size": "small",
+        "orientation": "vertical",
+        "details": "geometric shapes"
+      },
+      "prompt": "voxel-style abstract, small, primary colors: red, white, black, details: g, e, o, m, e, t, r, i, c,  , s, h, a, p, e, s, low-poly, game-friendly, 3D render, front view",
+      "quality": "light",
+      "output": "ca4f6ee30f2acb1f2a2cb10edc34c508ac6084b535da03aafa82f3415f1c2888_light.obj",
+      "output_type": "obj"
+    },
+    "meta_refined": {
+      "base": "ca4f6ee30f2acb1f2a2cb10edc34c508ac6084b535da03aafa82f3415f1c2888_light.obj",
+      "refined": "ca4f6ee30f2acb1f2a2cb10edc34c508ac6084b535da03aafa82f3415f1c2888_refined.glb",
+      "quality": "refined"
+    }
   }
 ]
