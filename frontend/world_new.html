@@ -71,7 +71,8 @@
         <h3>🌍 3D World</h3>
         <div id="status">Loading...</div>
         <div>Objects: <span id="object-count">0</span></div>
-        <div>Position: <span id="position">0, 0, 0</span></div>
+    <div>Position: <span id="position">0, 0, 0</span></div>
+    <div>Teleport target: <span id="teleport-target">--, --, --</span></div>
         <div id="object-list"></div>
     </div>
     
@@ -309,6 +310,14 @@
                 const py = (obj.y || 0);
                 const pz = (obj.z || 0) * scaleMultiplier;
                 entity.setAttribute('position', `${px} ${py + 1} ${pz}`);
+                // apply rotation from objects.json if present
+                try {
+                    if (obj.rotation && obj.rotation.length === 3) {
+                        entity.setAttribute('rotation', `${obj.rotation[0]} ${obj.rotation[1]} ${obj.rotation[2]}`);
+                    }
+                } catch (e) {
+                    console.warn('Failed to set rotation for', obj.id, e);
+                }
 
                 const url = obj.glb_url || '';
                 if (url && url !== '/assets/glb/GLB_PLACEHOLDER') {
@@ -358,97 +367,157 @@
                             createTexturedPlaneFallback(entity, baseUrl + url.replace(/\.obj$/i, '_fallback.png'));
                         }
                     } else {
-                        // Try GLB first; if it fails, attempt OBJ fallback
-                        entity.setAttribute('gltf-model', baseUrl + url);
-                        entity.setAttribute('scale', '0.6 0.6 0.6');
-                        entity.addEventListener('model-loaded', function () {
-                            // adjust scale using bounding box
+                        // Robust loader: fetch content and inspect bytes/text to determine
+                        // whether this is a real GLB, a mislabeled OBJ, or a placeholder.
+                        (async () => {
                             try {
-                                const model = this.getObject3D('mesh') || this.getObject3D('model');
-                                if (model) {
-                                    const box = new THREE.Box3().setFromObject(model);
-                                    const size = new THREE.Vector3();
-                                    box.getSize(size);
-                                    const maxDim = Math.max(size.x, size.y, size.z);
-                                    if (maxDim > 0) {
-                                        const target = 2.0 * scaleMultiplier;
-                                        const factor = target / maxDim;
-                                        this.object3D.scale.set(factor, factor, factor);
-                                    }
-                                }
-                            } catch (e) {
-                                console.warn('Error computing bbox for glb', baseUrl + url, e);
-                            }
-                        });
-                        entity.addEventListener('model-error', function (evt) {
-                            // Log the failing GLB filename for debugging and telemetry
-                            try {
-                                const failing = baseUrl + url;
-                                console.warn('gltf-model failed for', failing, evt);
-                                // Immediately remove gltf-model attribute to stop further loader attempts
-                                this.removeAttribute('gltf-model');
-                                // Attempt multiple candidate OBJ filenames (HEAD -> GET -> sanity check)
-                                (async () => {
-                                    try {
-                                        const candidates = [];
-                                        const baseName = url.replace(/\.glb$/i, '');
-                                        // common alternatives
-                                        candidates.push(baseName + '.obj');
-                                        candidates.push(baseName + '_light.obj');
-                                        candidates.push(baseName + '_refined.obj');
-                                        candidates.push(baseName + '_fallback.obj');
-                                        // if original glb had suffixes like _refined.light etc, try swapping
-                                        const alt = baseName.replace(/_refined$|_light$/i, '');
-                                        if (alt !== baseName) {
-                                            candidates.push(alt + '.obj');
-                                            candidates.push(alt + '_light.obj');
-                                            candidates.push(alt + '_refined.obj');
-                                        }
-                                        // de-duplicate while preserving order
-                                        const seen = new Set();
-                                        const uniq = candidates.filter(c => { if (seen.has(c)) return false; seen.add(c); return true; });
+                                const resp = await fetch(baseUrl + url);
+                                if (!resp.ok) throw new Error('HTTP ' + resp.status);
+                                // Attempt to read as arrayBuffer so we can inspect binary headers
+                                const buf = await resp.arrayBuffer();
+                                const bytes = new Uint8Array(buf);
+                                // preview first 256 bytes as text for quick heuristics
+                                let preview = '';
+                                try { preview = new TextDecoder('utf-8', {fatal:false}).decode(bytes.slice(0,256)); } catch(e) { preview = ''; }
 
-                                        let found = false;
-                                        for (const cand of uniq) {
-                                            try {
-                                                const head = await fetch(baseUrl + cand, { method: 'HEAD' });
-                                                if (!head.ok) continue;
-                                                const resp = await fetch(baseUrl + cand);
-                                                if (!resp.ok) continue;
-                                                const text = await resp.text();
-                                                if (!/^[ \t]*v\s+/m.test(text)) continue;
-                                                // set obj-model with explicit mtl URL (mtl may not exist but renderer handles it)
-                                                const mtlUrl = cand.replace(/\.obj$/i, '.mtl');
-                                                this.setAttribute('obj-model', `obj: ${baseUrl + cand}; mtl: ${baseUrl + mtlUrl}`);
-                                                found = true;
-                                                break;
-                                            } catch (inner) {
-                                                // try next candidate
-                                                continue;
+                                // Detect explicit placeholder markers (defensive)
+                                if (preview.includes('GLB_PLACEHOLDER') || preview.includes('GLB_FALLBACK') || preview.includes('DUMMY_GLB')) {
+                                    throw new Error('placeholder');
+                                }
+
+                                // Detect if the payload is actually OBJ text (some servers may misname)
+                                if (/^[\s]*v\s+/m.test(preview) || preview.includes('mtllib') || preview.includes('usemtl')) {
+                                    // treat as OBJ text
+                                    const text = new TextDecoder().decode(bytes);
+                                    // If MTL reference exists, try to fetch it; otherwise generate a minimal mtl
+                                    let mtlBlobUrl = null;
+                                    const mtlMatch = text.match(/^mtllib\s+(.+)$/m);
+                                    if (mtlMatch) {
+                                        const mtlName = mtlMatch[1].trim();
+                                        try {
+                                            const mtlResp = await fetch(new URL(mtlName, baseUrl + url).href);
+                                            if (mtlResp.ok) {
+                                                const mtlText = await mtlResp.text();
+                                                const mtlBlob = new Blob([mtlText], {type:'text/plain'});
+                                                mtlBlobUrl = URL.createObjectURL(mtlBlob);
                                             }
-                                        }
-                                        if (!found) {
-                                            console.warn('OBJ fallback missing or invalid for all candidates derived from', baseUrl + url);
-                                            try {
-                                                // remove A-Frame's managed Object3D instances safely
-                                                try { this.removeObject3D('mesh'); } catch(e){}
-                                                try { this.removeObject3D('model'); } catch(e){}
-                                                while (this.firstChild) this.removeChild(this.firstChild);
-                                                createTexturedPlaneFallback(this, baseUrl + url.replace(/\.glb$/i, '_fallback.png'));
-                                            } catch (inner) {
-                                                console.warn('Failed to attach textured fallback for', baseUrl + url, inner);
-                                            }
-                                        }
-                                    } catch (outer) {
-                                        console.warn('Unhandled error during glb -> obj candidate fallback', outer);
-                                        try { while (this.firstChild) this.removeChild(this.firstChild); } catch(e){}
-                                        createTexturedPlaneFallback(this, baseUrl + url.replace(/\.glb$/i, '_fallback.png'));
+                                        } catch(e){}
                                     }
-                                })();
-                            } catch (outer) {
-                                console.warn('Unhandled error during glb -> obj fallback', outer);
+                                    if (!mtlBlobUrl) {
+                                        // generate a minimal MTL
+                                        const gen = 'newmtl fallback\nKd 0.8 0.8 0.8\n';
+                                        const mtlBlob = new Blob([gen], {type:'text/plain'});
+                                        mtlBlobUrl = URL.createObjectURL(mtlBlob);
+                                    }
+                                    const objBlob = new Blob([text], {type:'text/plain'});
+                                    const objUrl = URL.createObjectURL(objBlob);
+                                    entity.setAttribute('obj-model', `obj: ${objUrl}; mtl: ${mtlBlobUrl}`);
+                                    return;
+                                }
+
+                                // Detect GLB binary header 'glTF'
+                                const magic = String.fromCharCode(bytes[0] || 0, bytes[1] || 0, bytes[2] || 0, bytes[3] || 0);
+                                if (magic === 'glTF') {
+                                    const blob = new Blob([buf], {type: 'model/gltf-binary'});
+                                    const blobUrl = URL.createObjectURL(blob);
+                                    entity.setAttribute('gltf-model', blobUrl);
+                                    entity.setAttribute('scale', '0.6 0.6 0.6');
+                                    // attach model-loaded to adjust bbox scaling
+                                    entity.addEventListener('model-loaded', function () {
+                                        try {
+                                            const model = this.getObject3D('mesh') || this.getObject3D('model');
+                                            if (model) {
+                                                const box = new THREE.Box3().setFromObject(model);
+                                                const size = new THREE.Vector3();
+                                                box.getSize(size);
+                                                const maxDim = Math.max(size.x, size.y, size.z);
+                                                if (maxDim > 0) {
+                                                    const target = 2.0 * scaleMultiplier;
+                                                    const factor = target / maxDim;
+                                                    this.object3D.scale.set(factor, factor, factor);
+                                                }
+                                            }
+                                        } catch (e) {
+                                            console.warn('Error computing bbox for glb', baseUrl + url, e);
+                                        }
+                                    });
+                                    // on error, attempt OBJ fallbacks below
+                                    entity.addEventListener('model-error', function (evt) {
+                                        console.warn('gltf-model failed for blob', baseUrl + url, evt);
+                                        try { this.removeAttribute('gltf-model'); } catch(e){}
+                                    });
+                                    return;
+                                }
+
+                                // Unknown binary/text payload - fall back to trying candidate OBJ files
+                                throw new Error('unknown-format');
+
+                            } catch (e) {
+                                // Try candidate OBJ fallbacks (same logic as before)
+                                try {
+                                    const baseName = url.replace(/\.glb$/i, '');
+                                    const candidates = [
+                                        baseName + '.obj',
+                                        baseName + '_light.obj',
+                                        baseName + '_refined.obj',
+                                        baseName + '_fallback.obj'
+                                    ];
+                                    const alt = baseName.replace(/_refined$|_light$/i, '');
+                                    if (alt !== baseName) {
+                                        candidates.push(alt + '.obj', alt + '_light.obj', alt + '_refined.obj');
+                                    }
+                                    const seen = new Set();
+                                    const uniq = candidates.filter(c => { if (seen.has(c)) return false; seen.add(c); return true; });
+                                    let found = false;
+                                    for (const cand of uniq) {
+                                        try {
+                                            const head = await fetch(baseUrl + cand, { method: 'HEAD' });
+                                            if (!head.ok) continue;
+                                            const resp2 = await fetch(baseUrl + cand);
+                                            if (!resp2.ok) continue;
+                                            const text = await resp2.text();
+                                            if (!/^[\s]*v\s+/m.test(text)) continue;
+                                            // create mtl blob if needed
+                                            let mtlBlobUrl = null;
+                                            const mtlMatch = text.match(/^mtllib\s+(.+)$/m);
+                                            if (mtlMatch) {
+                                                const mtlName = mtlMatch[1].trim();
+                                                try {
+                                                    const mtlResp = await fetch(new URL(mtlName, baseUrl + cand).href);
+                                                    if (mtlResp.ok) {
+                                                        const mtlText = await mtlResp.text();
+                                                        const mtlBlob = new Blob([mtlText], {type:'text/plain'});
+                                                        mtlBlobUrl = URL.createObjectURL(mtlBlob);
+                                                    }
+                                                } catch(e){}
+                                            }
+                                            if (!mtlBlobUrl) {
+                                                const gen = 'newmtl fallback\nKd 0.8 0.8 0.8\n';
+                                                const mtlBlob = new Blob([gen], {type:'text/plain'});
+                                                mtlBlobUrl = URL.createObjectURL(mtlBlob);
+                                            }
+                                            const objBlob = new Blob([text], {type:'text/plain'});
+                                            const objUrl = URL.createObjectURL(objBlob);
+                                            entity.setAttribute('obj-model', `obj: ${objUrl}; mtl: ${mtlBlobUrl}`);
+                                            found = true;
+                                            break;
+                                        } catch (inner) {
+                                            continue;
+                                        }
+                                    }
+                                    if (!found) {
+                                        try { this.removeObject3D && this.removeObject3D('mesh'); } catch(e){}
+                                        try { this.removeObject3D && this.removeObject3D('model'); } catch(e){}
+                                        while (entity.firstChild) entity.removeChild(entity.firstChild);
+                                        createTexturedPlaneFallback(entity, baseUrl + url.replace(/\.glb$/i, '_fallback.png'));
+                                    }
+                                } catch (outer) {
+                                    console.warn('Failed robust model load for', baseUrl + url, outer);
+                                    try { while (entity.firstChild) entity.removeChild(entity.firstChild); } catch(e){}
+                                    createTexturedPlaneFallback(entity, baseUrl + url.replace(/\.glb$/i, '_fallback.png'));
+                                }
                             }
-                        });
+                        })();
                     }
                 } else {
                     // Fallback: colored box
@@ -468,6 +537,17 @@
 
                 objectsContainer.appendChild(entity);
 
+                // Create a text label slightly above the entity so viewers can identify IDs
+                const label = document.createElement('a-entity');
+                label.setAttribute('id', `label-${obj.id || index}`);
+                // label position matches entity position but slightly elevated
+                label.setAttribute('position', `${px} ${py + 2} ${pz}`);
+                label.setAttribute('text', `value: ${obj.id || index}; align: center; color: #fff; width: 4`);
+                label.setAttribute('visible', true);
+                // prevent labels from interfering with raycaster interactions
+                label.classList.add('object-label');
+                objectsContainer.appendChild(label);
+
                 // Add to UI list (show scaled coords so list matches view)
                 const listItem = document.createElement('div');
                 listItem.className = 'object-item';
@@ -483,7 +563,20 @@
             const ty = (obj.y || 0) + 5;
             const tz = (obj.z || 0) * scaleMultiplier;
             const targetPos = `${tx} ${ty} ${tz}`;
-            cameraRig.setAttribute('animation', `property: position; to: ${targetPos}; dur: 1000`);
+            const dur = 1000;
+            // show intended teleport target in UI
+            document.getElementById('teleport-target').textContent = `${Math.round(tx)}, ${Math.round(ty)}, ${Math.round(tz)}`;
+            cameraRig.setAttribute('animation', `property: position; to: ${targetPos}; dur: ${dur}`);
+            // force final exact position after animation completes to avoid tiny mismatches
+            setTimeout(() => {
+                try {
+                    cameraRig.setAttribute('position', targetPos);
+                    // also update camera HUD immediately
+                    updatePosition();
+                } catch (e) {
+                    console.warn('Failed to set final camera position precisely', e);
+                }
+            }, dur + 50);
             log(`Focusing on object at (${obj.x}, ${obj.y}, ${obj.z})`, 'info');
         }
         
@@ -492,6 +585,16 @@
                 const pos = cameraRig.getAttribute('position');
                 const posText = `${Math.round(pos.x)}, ${Math.round(pos.y)}, ${Math.round(pos.z)}`;
                 document.getElementById('position').textContent = posText;
+                // if teleport-target matches current position (within 1 unit), clear it
+                const t = document.getElementById('teleport-target').textContent.split(',').map(s=>parseInt(s));
+                if (t.length===3) {
+                    const dx = Math.abs(Math.round(pos.x) - t[0]);
+                    const dy = Math.abs(Math.round(pos.y) - t[1]);
+                    const dz = Math.abs(Math.round(pos.z) - t[2]);
+                    if (dx<=1 && dy<=1 && dz<=1) {
+                        document.getElementById('teleport-target').textContent = '--, --, --';
+                    }
+                }
             }
         }
         

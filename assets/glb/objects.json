@@ -1,269 +1,383 @@
 [
-	{
-		"id": "tile_291_383",
-		"x": 931.2,
-		"y": 0,
-		"z": 1225.6,
-		"rotation": [
-			0,
-			0,
-			0
-		],
-		"scale": 1.0,
-		"glb_url": "/assets/glb/8c69fc2def98cb6d5924ec1547d80333e7359849941ece6eff273ca216f219be_refined.glb",
-		"quality": "refined",
-		"meta": {
-			"hash": "8c69fc2def98cb6d5924ec1547d80333e7359849941ece6eff273ca216f219be",
-			"attrs": {
-				"category": "object",
-				"colors": [
-					"red",
-					"white"
-				],
-				"size": "medium",
-				"orientation": "front",
-				"details": [
-					"placeholder"
-				]
-			},
-			"prompt": "voxel-style object, medium, primary colors: red, white, details: placeholder, low-poly, game-friendly, 3D render, front view",
-			"quality": "light"
-		},
-		"meta_refined": {
-			"base": "8c69fc2def98cb6d5924ec1547d80333e7359849941ece6eff273ca216f219be_light.glb",
-			"refined": "8c69fc2def98cb6d5924ec1547d80333e7359849941ece6eff273ca216f219be_refined.glb",
-			"quality": "refined"
-		},
-		"obj_url": "/assets/glb/8c69fc2def98cb6d5924ec1547d80333e7359849941ece6eff273ca216f219be_refined.obj"
-	},
-	{
-		"id": "tile_0_0",
-		"x": 0.0,
-		"y": 0,
-		"z": 0.0,
-		"rotation": [
-			0,
-			0,
-			0
-		],
-		"scale": 1.0,
-		"glb_url": "/assets/glb/ce75997479da8e0c9f1239e8e04ff1e4758a1af985d2540f78585ed848132cde_refined.glb",
-		"quality": "refined",
-		"meta": {
-			"hash": "ce75997479da8e0c9f1239e8e04ff1e4758a1af985d2540f78585ed848132cde",
-			"attrs": {
-				"category": "object",
-				"colors": [
-					"red",
-					"white"
-				],
-				"size": "medium",
-				"orientation": "front",
-				"details": [
-					"placeholder"
-				]
-			},
-			"prompt": "voxel-style object, medium, primary colors: red, white, details: placeholder, low-poly, game-friendly, 3D render, front view",
-			"quality": "light"
-		},
-		"meta_refined": {
-			"base": "ce75997479da8e0c9f1239e8e04ff1e4758a1af985d2540f78585ed848132cde_light.glb",
-			"refined": "ce75997479da8e0c9f1239e8e04ff1e4758a1af985d2540f78585ed848132cde_refined.glb",
-			"quality": "refined"
-		},
-		"obj_url": "/assets/glb/ce75997479da8e0c9f1239e8e04ff1e4758a1af985d2540f78585ed848132cde_refined.obj"
-	},
-	{
-		"id": "tile_296_377",
-		"x": 947.2,
-		"y": 0,
-		"z": 1206.4,
-		"rotation": [
-			0,
-			0,
-			0
-		],
-		"scale": 1.0,
-		"glb_url": "/assets/glb/9fd6b9fe457588d7be91a4155d0cdb4c30cfdf956559798c3dc3b410727d05e2_refined.glb",
-		"quality": "refined",
-		"meta": {
-			"hash": "9fd6b9fe457588d7be91a4155d0cdb4c30cfdf956559798c3dc3b410727d05e2",
-			"attrs": {
-				"category": "object",
-				"colors": [
-					"red",
-					"white"
-				],
-				"size": "medium",
-				"orientation": "front",
-				"details": [
-					"placeholder"
-				]
-			},
-			"prompt": "voxel-style object, medium, primary colors: red, white, details: placeholder, low-poly, game-friendly, 3D render, front view",
-			"quality": "light"
-		},
-		"meta_refined": {
-			"base": "9fd6b9fe457588d7be91a4155d0cdb4c30cfdf956559798c3dc3b410727d05e2_light.glb",
-			"refined": "9fd6b9fe457588d7be91a4155d0cdb4c30cfdf956559798c3dc3b410727d05e2_refined.glb",
-			"quality": "refined"
-		},
-		"obj_url": "/assets/glb/9fd6b9fe457588d7be91a4155d0cdb4c30cfdf956559798c3dc3b410727d05e2_refined.obj"
-	},
-	{
-		"id": "tile_295_381",
-		"x": 944.0,
-		"y": 0,
-		"z": 1219.2,
-		"rotation": [
-			0,
-			0,
-			0
-		],
-		"scale": 1.0,
-		"glb_url": "/assets/glb/99920031ca2758e9b3c346d228ba948823e8e4abff78030a4bd05260e211ea5c_refined.glb",
-		"quality": "refined",
-		"meta": {
-			"hash": "99920031ca2758e9b3c346d228ba948823e8e4abff78030a4bd05260e211ea5c",
-			"attrs": {
-				"category": "object",
-				"colors": [
-					"red",
-					"white"
-				],
-				"size": "medium",
-				"orientation": "front",
-				"details": [
-					"placeholder"
-				]
-			},
-			"prompt": "voxel-style object, medium, primary colors: red, white, details: placeholder, low-poly, game-friendly, 3D render, front view",
-			"quality": "light"
-		},
-		"meta_refined": {
-			"base": "99920031ca2758e9b3c346d228ba948823e8e4abff78030a4bd05260e211ea5c_light.glb",
-			"refined": "99920031ca2758e9b3c346d228ba948823e8e4abff78030a4bd05260e211ea5c_refined.glb",
-			"quality": "refined"
-		},
-		"obj_url": "/assets/glb/99920031ca2758e9b3c346d228ba948823e8e4abff78030a4bd05260e211ea5c_refined.obj"
-	},
-	{
-		"id": "tile_7_8",
-		"x": 22.4,
-		"y": 0,
-		"z": 25.6,
-		"rotation": [
-			0,
-			0,
-			0
-		],
-		"scale": 1.0,
-		"glb_url": "/assets/glb/fakehash_light.glb",
-		"quality": "light",
-		"meta": {
-			"hash": "fakehash",
-			"quality": "light",
-			"attrs": {}
-		},
-		"obj_url": "/assets/glb/fakehash_light.obj"
-	},
-	{
-		"id": "tile_298_377",
-		"x": 953.6,
-		"y": 0,
-		"z": 1206.4,
-		"rotation": [
-			0,
-			0,
-			0
-		],
-		"scale": 1.0,
-		"glb_url": "/assets/glb/c9ce075520235cd9c6a791d007ad92eaad3704d9cee5ffe18774e4b0c5bd3cfe_refined.glb",
-		"quality": "refined",
-		"meta": {
-			"hash": "c9ce075520235cd9c6a791d007ad92eaad3704d9cee5ffe18774e4b0c5bd3cfe",
-			"attrs": {
-				"category": "object",
-				"colors": [
-					"red",
-					"white"
-				],
-				"size": "medium",
-				"orientation": "front",
-				"details": [
-					"placeholder"
-				]
-			},
-			"prompt": "voxel-style object, medium, primary colors: red, white, details: placeholder, low-poly, game-friendly, 3D render, front view",
-			"quality": "light",
-			"output": "c9ce075520235cd9c6a791d007ad92eaad3704d9cee5ffe18774e4b0c5bd3cfe_light.glb",
-			"output_type": "glb"
-		},
-		"meta_refined": {
-			"base": "c9ce075520235cd9c6a791d007ad92eaad3704d9cee5ffe18774e4b0c5bd3cfe_light.glb",
-			"refined": "c9ce075520235cd9c6a791d007ad92eaad3704d9cee5ffe18774e4b0c5bd3cfe_refined.glb",
-			"quality": "refined"
-		},
-		"obj_url": "/assets/glb/c9ce075520235cd9c6a791d007ad92eaad3704d9cee5ffe18774e4b0c5bd3cfe_refined.obj"
-	},
-	{
-		"id": "tile_293_380",
-		"x": 937.6,
-		"y": 0,
-		"z": 1216.0,
-		"rotation": [
-			0,
-			0,
-			0
-		],
-		"scale": 1.0,
-		"glb_url": "/assets/glb/0a33d837cfc4878808ef2ba91c54ef65a74a36f02ef83dfa225778ec49a7601a_refined.glb",
-		"quality": "refined",
-		"meta": {
-			"hash": "0a33d837cfc4878808ef2ba91c54ef65a74a36f02ef83dfa225778ec49a7601a",
-			"attrs": {
-				"category": "object",
-				"colors": [
-					"red",
-					"white"
-				],
-				"size": "medium",
-				"orientation": "front",
-				"details": [
-					"placeholder"
-				]
-			},
-			"prompt": "voxel-style object, medium, primary colors: red, white, details: placeholder, low-poly, game-friendly, 3D render, front view",
-			"quality": "light",
-			"output": "0a33d837cfc4878808ef2ba91c54ef65a74a36f02ef83dfa225778ec49a7601a_light.glb",
-			"output_type": "glb"
-		},
-		"meta_refined": {
-			"base": "0a33d837cfc4878808ef2ba91c54ef65a74a36f02ef83dfa225778ec49a7601a_light.glb",
-			"refined": "0a33d837cfc4878808ef2ba91c54ef65a74a36f02ef83dfa225778ec49a7601a_refined.glb",
-			"quality": "refined"
-		},
-		"obj_url": "/assets/glb/0a33d837cfc4878808ef2ba91c54ef65a74a36f02ef83dfa225778ec49a7601a_refined.obj"
-	},
-	{
-		"id": "tile_295_378",
-		"x": 944.0,
-		"y": 0,
-		"z": 1209.6,
-		"rotation": [
-			0,
-			0,
-			0
-		],
-		"scale": 1.0,
-		"glb_url": "/assets/glb/b0775cba09eadf2fde241b35daa28cdcd03af6d23e99e0decd32b42f13f6d220_light.obj",
-		"quality": "light",
-		"meta": {
-			"hash": "b0775cba09eadf2fde241b35daa28cdcd03af6d23e99e0decd32b42f13f6d220",
-			"attrs": {},
-			"prompt": "",
-			"quality": "light"
-		},
-		"obj_url": "/assets/glb/b0775cba09eadf2fde241b35daa28cdcd03af6d23e99e0decd32b42f13f6d220_light.obj"
-	}
+  {
+    "id": "tile_291_383",
+    "x": 931.2,
+    "y": 0,
+    "z": 1225.6,
+    "rotation": [
+      0,
+      0,
+      0
+    ],
+    "scale": 1.0,
+    "glb_url": "/assets/glb/8c69fc2def98cb6d5924ec1547d80333e7359849941ece6eff273ca216f219be_refined.glb",
+    "quality": "refined",
+    "meta": {
+      "hash": "8c69fc2def98cb6d5924ec1547d80333e7359849941ece6eff273ca216f219be",
+      "attrs": {
+        "category": "object",
+        "colors": [
+          "red",
+          "white"
+        ],
+        "size": "medium",
+        "orientation": "front",
+        "details": [
+          "placeholder"
+        ]
+      },
+      "prompt": "voxel-style object, medium, primary colors: red, white, details: placeholder, low-poly, game-friendly, 3D render, front view",
+      "quality": "light"
+    },
+    "meta_refined": {
+      "base": "8c69fc2def98cb6d5924ec1547d80333e7359849941ece6eff273ca216f219be_light.glb",
+      "refined": "8c69fc2def98cb6d5924ec1547d80333e7359849941ece6eff273ca216f219be_refined.glb",
+      "quality": "refined"
+    },
+    "obj_url": "/assets/glb/8c69fc2def98cb6d5924ec1547d80333e7359849941ece6eff273ca216f219be_refined.obj"
+  },
+  {
+    "id": "tile_0_0",
+    "x": 0.0,
+    "y": 0,
+    "z": 0.0,
+    "rotation": [
+      0,
+      0,
+      0
+    ],
+    "scale": 1.0,
+    "glb_url": "/assets/glb/ce75997479da8e0c9f1239e8e04ff1e4758a1af985d2540f78585ed848132cde_refined.glb",
+    "quality": "refined",
+    "meta": {
+      "hash": "ce75997479da8e0c9f1239e8e04ff1e4758a1af985d2540f78585ed848132cde",
+      "attrs": {
+        "category": "object",
+        "colors": [
+          "red",
+          "white"
+        ],
+        "size": "medium",
+        "orientation": "front",
+        "details": [
+          "placeholder"
+        ]
+      },
+      "prompt": "voxel-style object, medium, primary colors: red, white, details: placeholder, low-poly, game-friendly, 3D render, front view",
+      "quality": "light"
+    },
+    "meta_refined": {
+      "base": "ce75997479da8e0c9f1239e8e04ff1e4758a1af985d2540f78585ed848132cde_light.glb",
+      "refined": "ce75997479da8e0c9f1239e8e04ff1e4758a1af985d2540f78585ed848132cde_refined.glb",
+      "quality": "refined"
+    },
+    "obj_url": "/assets/glb/ce75997479da8e0c9f1239e8e04ff1e4758a1af985d2540f78585ed848132cde_refined.obj"
+  },
+  {
+    "id": "tile_296_377",
+    "x": 947.2,
+    "y": 0,
+    "z": 1206.4,
+    "rotation": [
+      0,
+      0,
+      0
+    ],
+    "scale": 1.0,
+    "glb_url": "/assets/glb/9fd6b9fe457588d7be91a4155d0cdb4c30cfdf956559798c3dc3b410727d05e2_refined.glb",
+    "quality": "refined",
+    "meta": {
+      "hash": "9fd6b9fe457588d7be91a4155d0cdb4c30cfdf956559798c3dc3b410727d05e2",
+      "attrs": {
+        "category": "object",
+        "colors": [
+          "red",
+          "white"
+        ],
+        "size": "medium",
+        "orientation": "front",
+        "details": [
+          "placeholder"
+        ]
+      },
+      "prompt": "voxel-style object, medium, primary colors: red, white, details: placeholder, low-poly, game-friendly, 3D render, front view",
+      "quality": "light"
+    },
+    "meta_refined": {
+      "base": "9fd6b9fe457588d7be91a4155d0cdb4c30cfdf956559798c3dc3b410727d05e2_light.glb",
+      "refined": "9fd6b9fe457588d7be91a4155d0cdb4c30cfdf956559798c3dc3b410727d05e2_refined.glb",
+      "quality": "refined"
+    },
+    "obj_url": "/assets/glb/9fd6b9fe457588d7be91a4155d0cdb4c30cfdf956559798c3dc3b410727d05e2_refined.obj"
+  },
+  {
+    "id": "tile_295_381",
+    "x": 944.0,
+    "y": 0,
+    "z": 1219.2,
+    "rotation": [
+      0,
+      0,
+      0
+    ],
+    "scale": 1.0,
+    "glb_url": "/assets/glb/99920031ca2758e9b3c346d228ba948823e8e4abff78030a4bd05260e211ea5c_refined.glb",
+    "quality": "refined",
+    "meta": {
+      "hash": "99920031ca2758e9b3c346d228ba948823e8e4abff78030a4bd05260e211ea5c",
+      "attrs": {
+        "category": "object",
+        "colors": [
+          "red",
+          "white"
+        ],
+        "size": "medium",
+        "orientation": "front",
+        "details": [
+          "placeholder"
+        ]
+      },
+      "prompt": "voxel-style object, medium, primary colors: red, white, details: placeholder, low-poly, game-friendly, 3D render, front view",
+      "quality": "light"
+    },
+    "meta_refined": {
+      "base": "99920031ca2758e9b3c346d228ba948823e8e4abff78030a4bd05260e211ea5c_light.glb",
+      "refined": "99920031ca2758e9b3c346d228ba948823e8e4abff78030a4bd05260e211ea5c_refined.glb",
+      "quality": "refined"
+    },
+    "obj_url": "/assets/glb/99920031ca2758e9b3c346d228ba948823e8e4abff78030a4bd05260e211ea5c_refined.obj"
+  },
+  {
+    "id": "tile_7_8",
+    "x": 22.4,
+    "y": 0,
+    "z": 25.6,
+    "rotation": [
+      0,
+      0,
+      0
+    ],
+    "scale": 1.0,
+    "glb_url": "/assets/glb/fakehash_light.glb",
+    "quality": "light",
+    "meta": {
+      "hash": "fakehash",
+      "quality": "light",
+      "attrs": {}
+    },
+    "obj_url": "/assets/glb/fakehash_light.obj"
+  },
+  {
+    "id": "tile_298_377",
+    "x": 953.6,
+    "y": 0,
+    "z": 1206.4,
+    "rotation": [
+      0,
+      0,
+      0
+    ],
+    "scale": 1.0,
+    "glb_url": "/assets/glb/c9ce075520235cd9c6a791d007ad92eaad3704d9cee5ffe18774e4b0c5bd3cfe_refined.glb",
+    "quality": "refined",
+    "meta": {
+      "hash": "c9ce075520235cd9c6a791d007ad92eaad3704d9cee5ffe18774e4b0c5bd3cfe",
+      "attrs": {
+        "category": "object",
+        "colors": [
+          "red",
+          "white"
+        ],
+        "size": "medium",
+        "orientation": "front",
+        "details": [
+          "placeholder"
+        ]
+      },
+      "prompt": "voxel-style object, medium, primary colors: red, white, details: placeholder, low-poly, game-friendly, 3D render, front view",
+      "quality": "light",
+      "output": "c9ce075520235cd9c6a791d007ad92eaad3704d9cee5ffe18774e4b0c5bd3cfe_light.glb",
+      "output_type": "glb"
+    },
+    "meta_refined": {
+      "base": "c9ce075520235cd9c6a791d007ad92eaad3704d9cee5ffe18774e4b0c5bd3cfe_light.glb",
+      "refined": "c9ce075520235cd9c6a791d007ad92eaad3704d9cee5ffe18774e4b0c5bd3cfe_refined.glb",
+      "quality": "refined"
+    },
+    "obj_url": "/assets/glb/c9ce075520235cd9c6a791d007ad92eaad3704d9cee5ffe18774e4b0c5bd3cfe_refined.obj"
+  },
+  {
+    "id": "tile_293_380",
+    "x": 937.6,
+    "y": 0,
+    "z": 1216.0,
+    "rotation": [
+      0,
+      0,
+      0
+    ],
+    "scale": 1.0,
+    "glb_url": "/assets/glb/0a33d837cfc4878808ef2ba91c54ef65a74a36f02ef83dfa225778ec49a7601a_refined.glb",
+    "quality": "refined",
+    "meta": {
+      "hash": "0a33d837cfc4878808ef2ba91c54ef65a74a36f02ef83dfa225778ec49a7601a",
+      "attrs": {
+        "category": "object",
+        "colors": [
+          "red",
+          "white"
+        ],
+        "size": "medium",
+        "orientation": "front",
+        "details": [
+          "placeholder"
+        ]
+      },
+      "prompt": "voxel-style object, medium, primary colors: red, white, details: placeholder, low-poly, game-friendly, 3D render, front view",
+      "quality": "light",
+      "output": "0a33d837cfc4878808ef2ba91c54ef65a74a36f02ef83dfa225778ec49a7601a_light.glb",
+      "output_type": "glb"
+    },
+    "meta_refined": {
+      "base": "0a33d837cfc4878808ef2ba91c54ef65a74a36f02ef83dfa225778ec49a7601a_light.glb",
+      "refined": "0a33d837cfc4878808ef2ba91c54ef65a74a36f02ef83dfa225778ec49a7601a_refined.glb",
+      "quality": "refined"
+    },
+    "obj_url": "/assets/glb/0a33d837cfc4878808ef2ba91c54ef65a74a36f02ef83dfa225778ec49a7601a_refined.obj"
+  },
+  {
+    "id": "tile_295_378",
+    "x": 944.0,
+    "y": 0,
+    "z": 1209.6,
+    "rotation": [
+      -90,
+      0,
+      0
+    ],
+    "scale": 1.0,
+    "glb_url": "/assets/glb/b0775cba09eadf2fde241b35daa28cdcd03af6d23e99e0decd32b42f13f6d220_light.obj",
+    "quality": "light",
+    "meta": {
+      "hash": "b0775cba09eadf2fde241b35daa28cdcd03af6d23e99e0decd32b42f13f6d220",
+      "attrs": {},
+      "prompt": "",
+      "quality": "light"
+    },
+    "obj_url": "/assets/glb/b0775cba09eadf2fde241b35daa28cdcd03af6d23e99e0decd32b42f13f6d220_light.obj"
+  },
+  {
+    "id": "tile_292_378",
+    "x": 934.4,
+    "y": 0,
+    "z": 1209.6,
+    "rotation": [
+      0,
+      0,
+      0
+    ],
+    "scale": 1.0,
+    "glb_url": "/assets/glb/f8c6fb93c2dfa19882951987d816f7062a1509895c54bba2ca4fac45c44567b9_refined.glb",
+    "quality": "refined",
+    "meta": {
+      "hash": "f8c6fb93c2dfa19882951987d816f7062a1509895c54bba2ca4fac45c44567b9",
+      "attrs": {
+        "category": "object",
+        "colors": [
+          "red",
+          "white"
+        ],
+        "size": "medium",
+        "orientation": "front",
+        "details": [
+          "placeholder"
+        ]
+      },
+      "prompt": "voxel-style object, medium, primary colors: red, white, details: placeholder, low-poly, game-friendly, 3D render, front view",
+      "quality": "light",
+      "output": "f8c6fb93c2dfa19882951987d816f7062a1509895c54bba2ca4fac45c44567b9_light.obj",
+      "output_type": "obj"
+    },
+    "meta_refined": {
+      "base": "f8c6fb93c2dfa19882951987d816f7062a1509895c54bba2ca4fac45c44567b9_light.obj",
+      "refined": "f8c6fb93c2dfa19882951987d816f7062a1509895c54bba2ca4fac45c44567b9_refined.glb",
+      "quality": "refined"
+    }
+  },
+  {
+    "id": "tile_291_392",
+    "x": 931.2,
+    "y": 0,
+    "z": 1254.4,
+    "rotation": [
+      0,
+      0,
+      0
+    ],
+    "scale": 1.0,
+    "glb_url": "/assets/glb/d7cd6e6bf3ccad57b23c06b936979a8bebcdb6c454a507628e0e0b511d738632_refined.glb",
+    "quality": "refined",
+    "meta": {
+      "hash": "d7cd6e6bf3ccad57b23c06b936979a8bebcdb6c454a507628e0e0b511d738632",
+      "attrs": {
+        "category": "object",
+        "colors": [
+          "red",
+          "white"
+        ],
+        "size": "medium",
+        "orientation": "front",
+        "details": [
+          "placeholder"
+        ]
+      },
+      "prompt": "voxel-style object, medium, primary colors: red, white, details: placeholder, low-poly, game-friendly, 3D render, front view",
+      "quality": "light",
+      "output": "d7cd6e6bf3ccad57b23c06b936979a8bebcdb6c454a507628e0e0b511d738632_light.obj",
+      "output_type": "obj"
+    },
+    "meta_refined": {
+      "base": "d7cd6e6bf3ccad57b23c06b936979a8bebcdb6c454a507628e0e0b511d738632_light.obj",
+      "refined": "d7cd6e6bf3ccad57b23c06b936979a8bebcdb6c454a507628e0e0b511d738632_refined.glb",
+      "quality": "refined"
+    }
+  },
+  {
+    "id": "tile_289_392",
+    "x": 924.8,
+    "y": 0,
+    "z": 1254.4,
+    "rotation": [
+      0,
+      0,
+      0
+    ],
+    "scale": 1.0,
+    "glb_url": "/assets/glb/156869895c328abefd53764a9ce6f1d440b7b0dce07ee8375e931b59ec25891b_refined.glb",
+    "quality": "refined",
+    "meta": {
+      "hash": "156869895c328abefd53764a9ce6f1d440b7b0dce07ee8375e931b59ec25891b",
+      "attrs": {
+        "category": "object",
+        "colors": [
+          "red",
+          "white"
+        ],
+        "size": "medium",
+        "orientation": "front",
+        "details": [
+          "placeholder"
+        ]
+      },
+      "prompt": "voxel-style object, medium, primary colors: red, white, details: placeholder, low-poly, game-friendly, 3D render, front view",
+      "quality": "light",
+      "output": "156869895c328abefd53764a9ce6f1d440b7b0dce07ee8375e931b59ec25891b_light.obj",
+      "output_type": "obj"
+    },
+    "meta_refined": {
+      "base": "156869895c328abefd53764a9ce6f1d440b7b0dce07ee8375e931b59ec25891b_light.obj",
+      "refined": "156869895c328abefd53764a9ce6f1d440b7b0dce07ee8375e931b59ec25891b_refined.glb",
+      "quality": "refined"
+    }
+  }
 ]

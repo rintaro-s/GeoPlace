@@ -32,6 +32,8 @@ class Settings:
         # TripoSR / SD settings
         self.TRIPOSR_DIR = d.get('TRIPOSR_DIR', None)
         self.TRIPOSR_PY = d.get('TRIPOSR_PY', 'run.py')
+        # Optional path to a dedicated Python executable for running TripoSR
+        self.TRIPOSR_PYTHON = d.get('TRIPOSR_PYTHON', None)
         self.TRIPOSR_BAKE_TEXTURE = d.get('TRIPOSR_BAKE_TEXTURE', True)
         self.TRIPOSR_OUTPUT_FORMAT = d.get('TRIPOSR_OUTPUT_FORMAT', 'glb')
         self.SD_MODEL_ID = d.get('SD_MODEL_ID', 'runwayml/stable-diffusion-v1-5')

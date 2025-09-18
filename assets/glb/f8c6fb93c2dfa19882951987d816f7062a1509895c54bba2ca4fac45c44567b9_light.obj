@@ -1,0 +1,13 @@
+mtllib f8c6fb93c2dfa19882951987d816f7062a1509895c54bba2ca4fac45c44567b9_light_fallback.mtl
+o fallback_quad
+v -0.5 -0.5 0.0
+v 0.5 -0.5 0.0
+v 0.5 0.5 0.0
+v -0.5 0.5 0.0
+vt 0 0
+vt 1 0
+vt 1 1
+vt 0 1
+usemtl fallback
+s off
+f 1/1 2/2 3/3 4/4

@@ -19,6 +19,11 @@ TRIPOSR_DIR: "E:\\GITS\\TripoSR-main"
 TRIPOSR_PY: "run.py"
 TRIPOSR_BAKE_TEXTURE: true
 TRIPOSR_OUTPUT_FORMAT: "obj"
+# Path to a dedicated Python executable (venv) for running TripoSR. If set,
+# the server will invoke this Python to run TripoSR instead of the server's
+# own interpreter. Example on Windows:
+# TRIPOSR_PYTHON: "C:\\Users\\s-rin\\Documents\\GitHub\\GeoPlace\\venv-triposr\\Scripts\\python.exe"
+TRIPOSR_PYTHON: "C:\\Users\\s-rin\\Documents\\GitHub\\GeoPlace\\venv-triposr\\Scripts\\python.exe"
 # Stable Diffusion のモデル ID (diffusers)
 SD_MODEL_ID: "runwayml/stable-diffusion-v1-5"
 SD_VENV_PYTHON: "C:\\Users\\s-rin\\Documents\\GitHub\\GeoPlace\\venv-sd\\Scripts\\python.exe"

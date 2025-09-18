@@ -10,6 +10,7 @@ import traceback
 import subprocess
 import json
 from pathlib import Path
+from datetime import datetime
 
 _PIPELINE = None
 _DEVICE = None
@@ -102,24 +103,68 @@ def generate_image(model, prompt: str, seed: Optional[int]=None) -> bytes:
             except Exception:
                 sd_python = None
             if sd_python:
-                # call the sd_worker.py in the provided python venv
+                # call the sd_worker.py in the provided python venv with retries
                 worker = Path(__file__).resolve().parent.parent.parent / 'scripts' / 'sd_worker.py'
-                out_path = worker.parent / 'tmp_sd_out.png'
-                cmd = [sd_python, str(worker), '--prompt', prompt, '--out', str(out_path)]
-                try:
-                    proc = subprocess.run(cmd, capture_output=True, text=True, timeout=180)
-                except Exception as e:
-                    print('[SD] subprocess call failed:', e)
-                    proc = None
-                if proc and proc.stdout:
+                out_dir = worker.parent
+                out_path = out_dir / 'tmp_sd_out.png'
+                log_dir = Path(__file__).resolve().parent.parent.parent / 'backend' / 'cache' / 'sd_logs'
+                log_dir.mkdir(parents=True, exist_ok=True)
+                max_attempts = 3
+                base_prompt = prompt
+                for attempt in range(1, max_attempts + 1):
+                    # vary seed and slightly vary prompt on retries
+                    seed_arg = str( (attempt * 1009) % 2**31 )
+                    prompt_variant = base_prompt if attempt == 1 else (base_prompt + f' , detailed, vivid, pass {attempt}')
+                    cmd = [sd_python, str(worker), '--prompt', prompt_variant, '--out', str(out_path), '--steps', '20']
                     try:
-                        outj = json.loads(proc.stdout)
-                        if outj.get('status') == 'ok' and Path(outj['out']).exists():
-                            data = Path(outj['out']).read_bytes()
-                            return data
+                        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=240)
+                    except Exception as e:
+                        proc = None
+                        proc_stdout = f'Exception when running subprocess: {e}'
+                    else:
+                        proc_stdout = proc.stdout or ''
+                        proc_stderr = proc.stderr or ''
+
+                    # write logs per attempt
+                    ts = datetime.utcnow().strftime('%Y%m%dT%H%M%SZ')
+                    logpath = log_dir / f'sd_worker_{ts}_attempt{attempt}.log'
+                    try:
+                        with open(logpath, 'w', encoding='utf-8') as lf:
+                            lf.write('CMD: ' + ' '.join(cmd) + '\n\n')
+                            if proc is not None:
+                                lf.write('STDOUT:\n' + (proc_stdout or '') + '\n')
+                                lf.write('STDERR:\n' + (proc_stderr or '') + '\n')
+                            else:
+                                lf.write(proc_stdout)
                     except Exception:
-                        # fall through to dummy below
                         pass
+
+                    # check output
+                    if out_path.exists():
+                        try:
+                            data = out_path.read_bytes()
+                            # sanity check: ensure not single-color
+                            try:
+                                img = Image.open(out_path).convert('RGBA')
+                                px = list(img.getdata())
+                                cols = set(px)
+                                if len(cols) <= 2:
+                                    # too few colors -> likely single-color, retry
+                                    if attempt < max_attempts:
+                                        continue
+                                    else:
+                                        return data
+                                else:
+                                    return data
+                            except Exception:
+                                return data
+                        finally:
+                            try:
+                                out_path.unlink()
+                            except Exception:
+                                pass
+                    # if not produced, loop to retry
+                # All attempts failed -> fall back to dummy
             # No external venv or subprocess failure: return diagnostic image
             return _dummy_generate(prompt)
         # model is a diffusers pipeline
