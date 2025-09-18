@@ -8,7 +8,7 @@
 
 簡易実装方針: メモリ管理 (本番は Redis などに移行)
 """
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request
 from fastapi import APIRouter
 from fastapi.responses import JSONResponse, FileResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -67,6 +67,34 @@ router = APIRouter(prefix="/api")
 
 # include router so /api endpoints are available
 app.include_router(router)
+
+
+@app.middleware("http")
+async def glb_placeholder_middleware(request: Request, call_next):
+    """Intercept requests to /assets/glb/* to detect placeholder GLB bytes and return 404.
+
+    StaticFiles is mounted at /assets and may serve raw placeholder files directly; this
+    middleware checks the file contents first and returns a JSON 404 for known markers
+    so frontend fallback logic can run instead of attempting to parse broken GLBs.
+    """
+    try:
+        path = request.url.path
+        if path.startswith('/assets/glb/'):
+            filename = path.split('/assets/glb/', 1)[1]
+            file_path = ASSET_GLB_DIR / filename
+            if file_path.exists():
+                try:
+                    with open(file_path, 'rb') as fh:
+                        prefix = fh.read(64)
+                    markers = [b'GLB_PLACEHOLDER', b'GLB_FALLBACK', b'DUMMY_GLB']
+                    if any(m in prefix for m in markers):
+                        return JSONResponse({'error': 'not found (placeholder)'}, status_code=404)
+                except Exception:
+                    return JSONResponse({'error': 'not found'}, status_code=404)
+    except Exception:
+        # If anything goes wrong here, fall through to normal handling
+        pass
+    return await call_next(request)
 
 # ---- Data Structures ----
 class PaintPayload(BaseModel):
@@ -613,9 +641,20 @@ async def ws_endpoint(ws: WebSocket):
 @app.get('/assets/glb/{filename}')
 async def get_glb(filename: str):
     path = ASSET_GLB_DIR / filename
-    if path.exists():
+    if not path.exists():
+        return JSONResponse({'error': 'not found'}, status_code=404)
+    try:
+        # read small prefix to detect placeholder/broken GLB markers
+        with open(path, 'rb') as fh:
+            prefix = fh.read(64)
+        # common markers produced by our fallback writers
+        markers = [b'GLB_PLACEHOLDER', b'GLB_FALLBACK', b'DUMMY_GLB']
+        if any(m in prefix for m in markers):
+            # treat as missing so frontend will attempt OBJ fallback or textured plane
+            return JSONResponse({'error': 'not found (placeholder)'}, status_code=404)
         return FileResponse(path)
-    return JSONResponse({'error': 'not found'}, status_code=404)
+    except Exception:
+        return JSONResponse({'error': 'not found'}, status_code=404)
 
 @app.on_event('startup')
 async def startup_load_models():

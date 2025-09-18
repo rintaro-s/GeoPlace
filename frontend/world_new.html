@@ -285,76 +285,169 @@
             }
         }
         
-        function renderObjects() {
+        async function renderObjects() {
             // Clear existing objects
             objectsContainer.innerHTML = '';
-            
+
             // Update UI
             document.getElementById('object-count').textContent = objects.length;
-            
+
             // Render object list
             const objectList = document.getElementById('object-list');
             objectList.innerHTML = '';
-            
-            // compute display scale multiplier (backend world units -> displayed units)
-            const tileScaleVal = parseFloat(document.getElementById('tile-scale').value || '1.0');
-            const scaleMultiplier = baseTileWorldSize * tileScaleVal;
-            // compute ground world size and center offset (must match onTileScaleChange)
-            const worldW = (CANVAS_PX_W / TILE_PX) * BACKEND_TILE_WORLD * baseTileWorldSize * tileScaleVal;
-            const worldH = (CANVAS_PX_H / TILE_PX) * BACKEND_TILE_WORLD * baseTileWorldSize * tileScaleVal;
-            const groundCenterX = worldW / 2.0;
-            const groundCenterZ = worldH / 2.0;
 
-            objects.forEach((obj, index) => {
-                // Create 3D object
+            // compute display scale multiplier (backend world units -> displayed units)
+            const scaleMultiplier = baseTileWorldSize * parseFloat(document.getElementById('tile-scale').value || '1.0');
+
+            for (let index = 0; index < objects.length; index++) {
+                const obj = objects[index];
                 const entity = document.createElement('a-entity');
                 entity.setAttribute('id', `object-${obj.id || index}`);
+
                 // Apply display scaling so object positions align with ground plane scaling
                 const px = (obj.x || 0) * scaleMultiplier;
                 const py = (obj.y || 0);
                 const pz = (obj.z || 0) * scaleMultiplier;
-                // objects.json uses top-left origin; we placed the ground centered at worldW/2,worldH/2
-                const finalX = px + groundCenterX;
-                const finalZ = pz + groundCenterZ;
-                // lift objects slightly above ground so they aren't z-fighting
-                const finalY = py + 0.5;
-                entity.setAttribute('position', `${finalX} ${finalY} ${finalZ}`);
-                
-                if (obj.glb_url && obj.glb_url !== '/assets/glb/GLB_PLACEHOLDER') {
-                    const url = obj.glb_url;
-                    // If it's an OBJ, explicitly pass the MTL path too (helps loaders resolve materials)
+                entity.setAttribute('position', `${px} ${py + 1} ${pz}`);
+
+                const url = obj.glb_url || '';
+                if (url && url !== '/assets/glb/GLB_PLACEHOLDER') {
                     if (url.toLowerCase().endsWith('.obj')) {
-                        const mtlUrl = url.replace(/\.obj$/i, '.mtl');
-                        entity.setAttribute('obj-model', `obj: ${url}; mtl: ${mtlUrl}`);
-                        entity.setAttribute('scale', '0.5 0.5 0.5');
-                        // If OBJ fails to load, show a simple textured plane as a last-resort fallback
-                        entity.addEventListener('model-error', function (evt) {
-                            console.warn('OBJ load failed for', url, evt);
-                            const png = url.replace(/\.obj$/i, '_fallback.png');
-                            createTexturedBoxFallback(this, png, scaleMultiplier);
-                        });
+                        // prefetch and check OBJ content to detect corrupt/dummy files
+                        try {
+                            const resp = await fetch(baseUrl + url);
+                            if (!resp.ok) throw new Error('HTTP ' + resp.status);
+                            const text = await resp.text();
+                            if (!/^[ \t]*v\s+/m.test(text)) {
+                                console.warn('OBJ appears invalid or contains no vertex data:', url);
+                                createTexturedPlaneFallback(entity, baseUrl + url.replace(/\.obj$/i, '_fallback.png'));
+                            } else {
+                                const mtlUrl = url.replace(/\.obj$/i, '.mtl');
+                                entity.setAttribute('obj-model', `obj: ${baseUrl + url}; mtl: ${baseUrl + mtlUrl}`);
+                                entity.setAttribute('scale', '0.6 0.6 0.6');
+
+                                // model-loaded handler: compute bbox and adjust scale if needed
+                                entity.addEventListener('model-loaded', function (evt) {
+                                    try {
+                                        const mesh = this.getObject3D('mesh') || this.getObject3D('model');
+                                        if (mesh) {
+                                            const box = new THREE.Box3().setFromObject(mesh);
+                                            const size = new THREE.Vector3();
+                                            box.getSize(size);
+                                            const maxDim = Math.max(size.x, size.y, size.z);
+                                            if (maxDim > 0) {
+                                                // target size in world units (approx)
+                                                const target = 2.0 * scaleMultiplier;
+                                                const factor = target / maxDim;
+                                                // apply scaling multiplier
+                                                this.object3D.scale.set(factor, factor, factor);
+                                            }
+                                        }
+                                    } catch (e) {
+                                        console.warn('Error computing bbox for', url, e);
+                                    }
+                                });
+
+                                entity.addEventListener('model-error', function (evt) {
+                                    console.warn('OBJ model-error for', url, evt);
+                                    createTexturedPlaneFallback(this, baseUrl + url.replace(/\.obj$/i, '_fallback.png'));
+                                });
+                            }
+                        } catch (e) {
+                            console.warn('Failed to fetch/check OBJ:', url, e);
+                            createTexturedPlaneFallback(entity, baseUrl + url.replace(/\.obj$/i, '_fallback.png'));
+                        }
                     } else {
-                        // Handle GLB files; if GLB parsing fails (corrupt placeholder), try OBJ fallback or a textured plane
-                        entity.setAttribute('gltf-model', url);
-                        entity.setAttribute('scale', '0.5 0.5 0.5');
-                        entity.addEventListener('model-error', function (evt) {
-                            console.warn('gltf-model failed for', url, evt);
-                            // try corresponding .obj
-                            const objUrl = url.replace(/\.glb$/i, '.obj');
-                            const mtlUrl = objUrl.replace(/\.obj$/i, '.mtl');
-                            // attempt OBJ fallback
-                            this.removeAttribute('gltf-model');
-                            this.setAttribute('obj-model', `obj: ${objUrl}; mtl: ${mtlUrl}`);
-                            // if OBJ also fails shortly after, show textured plane
-                            const self = this;
-                            setTimeout(() => {
-                                // if no children/models attached, fallback
-                                // We check if the entity has any object3D children (A-Frame puts Three objects there)
-                                if (!self.getObject3D || !self.getObject3D('mesh')) {
-                                    const png = url.replace(/\.glb$/i, '_fallback.png');
-                                    createTexturedBoxFallback(self, png, scaleMultiplier);
+                        // Try GLB first; if it fails, attempt OBJ fallback
+                        entity.setAttribute('gltf-model', baseUrl + url);
+                        entity.setAttribute('scale', '0.6 0.6 0.6');
+                        entity.addEventListener('model-loaded', function () {
+                            // adjust scale using bounding box
+                            try {
+                                const model = this.getObject3D('mesh') || this.getObject3D('model');
+                                if (model) {
+                                    const box = new THREE.Box3().setFromObject(model);
+                                    const size = new THREE.Vector3();
+                                    box.getSize(size);
+                                    const maxDim = Math.max(size.x, size.y, size.z);
+                                    if (maxDim > 0) {
+                                        const target = 2.0 * scaleMultiplier;
+                                        const factor = target / maxDim;
+                                        this.object3D.scale.set(factor, factor, factor);
+                                    }
                                 }
-                            }, 1200);
+                            } catch (e) {
+                                console.warn('Error computing bbox for glb', baseUrl + url, e);
+                            }
+                        });
+                        entity.addEventListener('model-error', function (evt) {
+                            // Log the failing GLB filename for debugging and telemetry
+                            try {
+                                const failing = baseUrl + url;
+                                console.warn('gltf-model failed for', failing, evt);
+                                // Immediately remove gltf-model attribute to stop further loader attempts
+                                this.removeAttribute('gltf-model');
+                                // Attempt multiple candidate OBJ filenames (HEAD -> GET -> sanity check)
+                                (async () => {
+                                    try {
+                                        const candidates = [];
+                                        const baseName = url.replace(/\.glb$/i, '');
+                                        // common alternatives
+                                        candidates.push(baseName + '.obj');
+                                        candidates.push(baseName + '_light.obj');
+                                        candidates.push(baseName + '_refined.obj');
+                                        candidates.push(baseName + '_fallback.obj');
+                                        // if original glb had suffixes like _refined.light etc, try swapping
+                                        const alt = baseName.replace(/_refined$|_light$/i, '');
+                                        if (alt !== baseName) {
+                                            candidates.push(alt + '.obj');
+                                            candidates.push(alt + '_light.obj');
+                                            candidates.push(alt + '_refined.obj');
+                                        }
+                                        // de-duplicate while preserving order
+                                        const seen = new Set();
+                                        const uniq = candidates.filter(c => { if (seen.has(c)) return false; seen.add(c); return true; });
+
+                                        let found = false;
+                                        for (const cand of uniq) {
+                                            try {
+                                                const head = await fetch(baseUrl + cand, { method: 'HEAD' });
+                                                if (!head.ok) continue;
+                                                const resp = await fetch(baseUrl + cand);
+                                                if (!resp.ok) continue;
+                                                const text = await resp.text();
+                                                if (!/^[ \t]*v\s+/m.test(text)) continue;
+                                                // set obj-model with explicit mtl URL (mtl may not exist but renderer handles it)
+                                                const mtlUrl = cand.replace(/\.obj$/i, '.mtl');
+                                                this.setAttribute('obj-model', `obj: ${baseUrl + cand}; mtl: ${baseUrl + mtlUrl}`);
+                                                found = true;
+                                                break;
+                                            } catch (inner) {
+                                                // try next candidate
+                                                continue;
+                                            }
+                                        }
+                                        if (!found) {
+                                            console.warn('OBJ fallback missing or invalid for all candidates derived from', baseUrl + url);
+                                            try {
+                                                // remove A-Frame's managed Object3D instances safely
+                                                try { this.removeObject3D('mesh'); } catch(e){}
+                                                try { this.removeObject3D('model'); } catch(e){}
+                                                while (this.firstChild) this.removeChild(this.firstChild);
+                                                createTexturedPlaneFallback(this, baseUrl + url.replace(/\.glb$/i, '_fallback.png'));
+                                            } catch (inner) {
+                                                console.warn('Failed to attach textured fallback for', baseUrl + url, inner);
+                                            }
+                                        }
+                                    } catch (outer) {
+                                        console.warn('Unhandled error during glb -> obj candidate fallback', outer);
+                                        try { while (this.firstChild) this.removeChild(this.firstChild); } catch(e){}
+                                        createTexturedPlaneFallback(this, baseUrl + url.replace(/\.glb$/i, '_fallback.png'));
+                                    }
+                                })();
+                            } catch (outer) {
+                                console.warn('Unhandled error during glb -> obj fallback', outer);
+                            }
                         });
                     }
                 } else {
@@ -363,26 +456,25 @@
                     const colors = ['#ff4444', '#44ff44', '#4444ff', '#ffff44', '#ff44ff'];
                     entity.setAttribute('material', `color: ${colors[index % colors.length]}`);
                 }
-                
+
                 // Add shadow
                 entity.setAttribute('shadow', 'cast: true; receive: true');
-                
+
                 // Add click interaction
                 entity.setAttribute('cursor-listener', '');
                 entity.addEventListener('click', () => {
                     focusOnObject(obj);
                 });
-                
+
                 objectsContainer.appendChild(entity);
-                
-                // Add to UI list
+
+                // Add to UI list (show scaled coords so list matches view)
                 const listItem = document.createElement('div');
                 listItem.className = 'object-item';
-                // Show scaled & offset coordinates to match rendered position
-                listItem.textContent = `${obj.id || index}: (${Math.round(finalX)}, ${Math.round(finalY)}, ${Math.round(finalZ)})`;
+                listItem.textContent = `${obj.id || index}: (${Math.round(px)}, ${Math.round(py)}, ${Math.round(pz)})`;
                 listItem.onclick = () => focusOnObject(obj);
                 objectList.appendChild(listItem);
-            });
+            }
         }
         
         function focusOnObject(obj) {
@@ -414,8 +506,8 @@
                 entity.removeAttribute('obj-model');
                 entity.removeAttribute('gltf-model');
                 // create a child plane that uses the PNG as texture
-                // fallback kept for older cases
                 const plane = document.createElement('a-plane');
+                // position plane slightly above ground
                 plane.setAttribute('position', '0 0 0');
                 plane.setAttribute('rotation', '-90 0 0');
                 plane.setAttribute('width', '1');
@@ -425,25 +517,6 @@
                 entity.appendChild(plane);
             } catch (e) {
                 console.warn('Failed to create textured plane fallback', e);
-            }
-        }
-
-        function createTexturedBoxFallback(entity, pngUrl, scaleMultiplier) {
-            try {
-                entity.removeAttribute('obj-model');
-                entity.removeAttribute('gltf-model');
-                // create a thin box so it looks less like paper
-                const box = document.createElement('a-box');
-                // size the box relative to scaleMultiplier to keep visual consistency
-                const size = Math.max(0.6 * scaleMultiplier, 0.5);
-                box.setAttribute('width', size);
-                box.setAttribute('height', size * 0.6);
-                box.setAttribute('depth', Math.max(0.05, size * 0.05));
-                box.setAttribute('material', `src: ${pngUrl}; side: double`);
-                box.setAttribute('position', '0 0 0');
-                entity.appendChild(box);
-            } catch (e) {
-                console.warn('Failed to create textured box fallback', e);
             }
         }
         

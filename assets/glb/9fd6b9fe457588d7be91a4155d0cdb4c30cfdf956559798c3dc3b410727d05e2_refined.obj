@@ -1,0 +1,12 @@
+
+mtllib 9fd6b9fe457588d7be91a4155d0cdb4c30cfdf956559798c3dc3b410727d05e2_refined.mtl
+v -0.5 0 0.5
+v 0.5 0 0.5
+v 0.5 0 -0.5
+v -0.5 0 -0.5
+vt 0 0
+vt 1 0
+vt 1 1
+vt 0 1
+usemtl mat0
+f 1/1 2/2 3/3 4/4

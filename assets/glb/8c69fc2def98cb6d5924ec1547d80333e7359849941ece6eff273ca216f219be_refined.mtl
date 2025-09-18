@@ -1,0 +1,9 @@
+
+# generated minimal MTL
+newmtl mat0
+Ka 1.000 1.000 1.000
+Kd 1.000 1.000 1.000
+Ks 0.000 0.000 0.000
+d 1.0
+illum 2
+map_Kd 8c69fc2def98cb6d5924ec1547d80333e7359849941ece6eff273ca216f219be_refined_fallback.png
