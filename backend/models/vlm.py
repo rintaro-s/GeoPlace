@@ -54,6 +54,16 @@ def _http_call(url: str, token: Optional[str], image_bytes: bytes, timeout: int)
         except Exception:
             mode = 'image_b64'
 
+        # persist the raw tile image for auditing so we can inspect what was sent
+        try:
+            cache = Path(__file__).resolve().parent.parent / 'cache' / 'vlm_logs'
+            cache.mkdir(parents=True, exist_ok=True)
+            ts_local = time.strftime('%Y%m%dT%H%M%SZ')
+            img_path = cache / f"{ts_local}_sent.png"
+            img_path.write_bytes(image_bytes)
+        except Exception:
+            img_path = None
+
         if mode == 'openai_chat':
             # Build OpenAI-like messages array with data URL image
             img_b64 = b64encode(image_bytes).decode('ascii')
@@ -62,23 +72,28 @@ def _http_call(url: str, token: Optional[str], image_bytes: bytes, timeout: int)
             system_msg = {
                 'role': 'system',
                 'content': (
-                    'You are an assistant that analyzes an input image and returns ' \
-                    'a single JSON object and nothing else. The JSON must match the ' \
-                    'schema: {"category":string, "colors": [string], "size": "small|medium|large", ' \
-                    '"orientation": "front|side|top|angled", "details": [string]}. '
+                    "You are an assistant that inspects a single input image and returns exactly ONE JSON object and NOTHING else. "
+                    "The JSON must follow this schema (example):\n"
+                    "{\"category\": \"object\", \"colors\": [\"red\",\"white\"], \"size\": \"small\", \"orientation\": \"front\", \"details\": [\"detail1\"]}\n"
+                    "Fields:\n"
+                    " - category: one-word label (e.g. object, building, person, abstract)\n"
+                    " - colors: array of color names\n"
+                    " - size: one of small, medium, large\n"
+                    " - orientation: one of front, side, top, angled\n"
+                    " - details: array of short strings describing notable features\n"
                 )
             }
             user_msg = {
                 'role': 'user',
-                'content': f'Analyze this image and return JSON only. Image data: {data_url}'
+                'content': f'Analyze the image and return JSON only following the schema above. Image data (base64): {data_url}'
             }
             payload = {'messages': [system_msg, user_msg]}
-            _log_vlm('request_openai_chat', {'url': url, 'payload_preview': str(payload)[:1000]})
+            _log_vlm('request_openai_chat', {'url': url, 'payload_preview': str(payload)[:1000], 'sent_image': str(img_path) if img_path is not None else None})
             resp = requests.post(url, json=payload, headers=hdr, timeout=timeout)
         elif mode == 'multipart':
             # send as multipart/form-data file upload
             files = {'file': ('tile.png', image_bytes, 'image/png')}
-            _log_vlm('request_multipart', {'url': url, 'files': list(files.keys())})
+            _log_vlm('request_multipart', {'url': url, 'files': list(files.keys()), 'sent_image': str(img_path) if img_path is not None else None})
             resp = requests.post(url, files=files, headers={'Authorization': hdr.get('Authorization')} if token else None, timeout=timeout)
         else:
             # Include messages alongside image_b64 for compatibility with
@@ -90,17 +105,28 @@ def _http_call(url: str, token: Optional[str], image_bytes: bytes, timeout: int)
             data_url = f"data:image/png;base64,{img_b64}"
             system_msg = {
                 'role': 'system',
-                'content': 'Return a single JSON object and nothing else following schema: {"category","colors","size","orientation","details"}.'
+                'content': (
+                    "Return exactly ONE JSON object and nothing else. The JSON must follow this example schema: "
+                    "{\"category\":\"object\",\"colors\":[\"red\"],\"size\":\"medium\",\"orientation\":\"front\",\"details\":[\"detail\"]}."
+                )
             }
+            # Do NOT embed the full data URL twice: the binary/base64 is already
+            # included as the top-level 'image_b64' field. Some servers want the
+            # image as a separate field while others parse inline data URLs; to
+            # avoid sending huge duplicate payloads we reference the attachment
+            # in the message instead of repeating the data URL.
+            user_content = 'Analyze the attached image and respond with JSON only following the schema above. The image is provided in the payload as image_b64.'
+            if img_path is not None:
+                user_content += f' (sent_image: {str(img_path)})'
             user_msg = {
                 'role': 'user',
-                'content': f'Analyze the image and return JSON only. Image: {data_url}'
+                'content': user_content
             }
             payload = {
                 'image_b64': img_b64,
                 'messages': [system_msg, user_msg]
             }
-            _log_vlm('request_image_b64_with_messages', {'url': url, 'headers': {k: hdr.get(k) for k in ('Authorization',)}, 'payload_preview': str(payload)[:1000]})
+            _log_vlm('request_image_b64_with_messages', {'url': url, 'headers': {k: hdr.get(k) for k in ('Authorization',)}, 'payload_preview': str(payload)[:1000], 'sent_image': str(img_path) if img_path is not None else None})
             resp = requests.post(url, json=payload, headers=hdr, timeout=timeout)
 
         try:

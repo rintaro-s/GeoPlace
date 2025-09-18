@@ -332,28 +332,59 @@
                                 createTexturedPlaneFallback(entity, baseUrl + url.replace(/\.obj$/i, '_fallback.png'));
                             } else {
                                 const mtlUrl = url.replace(/\.obj$/i, '.mtl');
-                                entity.setAttribute('obj-model', `obj: ${baseUrl + url}; mtl: ${baseUrl + mtlUrl}`);
+                                // set basic OBJ load (mtl may be missing)
+                                entity.setAttribute('obj-model', `obj: ${baseUrl + url}`);
                                 entity.setAttribute('scale', '0.6 0.6 0.6');
 
-                                // model-loaded handler: compute bbox and adjust scale if needed
-                                entity.addEventListener('model-loaded', function (evt) {
+                                // After model loads, if no material map present, try applying PNG texture
+                                entity.addEventListener('model-loaded', async function (evt) {
                                     try {
-                                        const mesh = this.getObject3D('mesh') || this.getObject3D('model');
-                                        if (mesh) {
-                                            const box = new THREE.Box3().setFromObject(mesh);
-                                            const size = new THREE.Vector3();
-                                            box.getSize(size);
-                                            const maxDim = Math.max(size.x, size.y, size.z);
-                                            if (maxDim > 0) {
-                                                // target size in world units (approx)
-                                                const target = 2.0 * scaleMultiplier;
-                                                const factor = target / maxDim;
-                                                // apply scaling multiplier
-                                                this.object3D.scale.set(factor, factor, factor);
+                                        const threeObj = this.getObject3D('mesh') || this.getObject3D('model');
+                                        if (!threeObj) return;
+
+                                        // detect whether any material already has a map
+                                        let hasMap = false;
+                                        threeObj.traverse((node) => {
+                                            if (node.isMesh && node.material) {
+                                                const mats = Array.isArray(node.material) ? node.material : [node.material];
+                                                for (const m of mats) {
+                                                    if (m && m.map) { hasMap = true; break; }
+                                                }
                                             }
+                                        });
+                                        if (hasMap) return; // already textured via MTL
+
+                                        // try to locate PNG candidates (primary name and fallback)
+                                        const pngCandidates = [baseUrl + url.replace(/\.obj$/i, '.png'), baseUrl + url.replace(/\.obj$/i, '_fallback.png')];
+
+                                        // helper to check image availability
+                                        const checkImage = (u) => new Promise((res) => {
+                                            const img = new Image(); img.onload = () => res(true); img.onerror = () => res(false); img.src = u;
+                                        });
+
+                                        let found = null;
+                                        for (const u of pngCandidates) {
+                                            // eslint-disable-next-line no-await-in-loop
+                                            if (await checkImage(u)) { found = u; break; }
                                         }
+                                        if (!found) return;
+
+                                        // load texture and apply (OBJ uvs expect flipY=false)
+                                        const loader = new THREE.TextureLoader();
+                                        loader.load(found, (tex) => {
+                                            tex.flipY = false;
+                                            threeObj.traverse((node) => {
+                                                if (node.isMesh) {
+                                                    const mats = Array.isArray(node.material) ? node.material : [node.material];
+                                                    for (const m of mats) {
+                                                        try { if (m) { m.map = tex; m.needsUpdate = true; } } catch (e) {}
+                                                    }
+                                                }
+                                            });
+                                        });
+
                                     } catch (e) {
-                                        console.warn('Error computing bbox for', url, e);
+                                        console.warn('Failed to apply PNG texture to OBJ', url, e);
                                     }
                                 });
 

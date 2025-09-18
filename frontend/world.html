@@ -33,17 +33,86 @@
         e.setAttribute('gltf-model', o.glb_url);
         e.setAttribute('position', `${o.x} ${o.y} ${o.z}`);
         e.setAttribute('rotation', o.rotation.join(' '));
-        const sc = o.scale || 1.0; e.setAttribute('scale', `${sc} ${sc} ${sc}`);
+  // scale will be set later after position/rotation are adjusted
         // quality color ring
         if (o.quality === 'refined') e.setAttribute('material','color:#FFF;opacity:0.95');
         
         // Set model or fallback to primitive - support both GLB and OBJ
         if (o.glb_url && o.glb_url !== '/assets/glb/GLB_PLACEHOLDER') {
           if (o.glb_url.endsWith('.obj')) {
-            e.setAttribute('obj-model', `obj: ${o.glb_url}`);
-            // Look for texture file with same name
-            const texUrl = o.glb_url.replace('.obj', '.png');
-            e.setAttribute('obj-model', `obj: ${o.glb_url}; mtl: ${texUrl}`);
+            // Load OBJ; prefer MTL if present. If MTL isn't present but a PNG exists,
+            // apply the PNG as a texture client-side after the model loads.
+            const objUrl = o.glb_url;
+            e.setAttribute('obj-model', `obj: ${objUrl}`);
+
+            // candidate PNG urls to try (primary and fallback)
+            const pngCandidates = [objUrl.replace('.obj', '.png'), objUrl.replace('.obj', '_fallback.png')];
+
+            // helper: check if url exists by attempting to load an Image
+            function checkImage(url) {
+              return new Promise((resolve) => {
+                const img = new Image();
+                img.onload = () => resolve(true);
+                img.onerror = () => resolve(false);
+                img.src = url;
+              });
+            }
+
+            // After model loaded, verify materials; if no texture maps found, try to apply a PNG
+            e.addEventListener('model-loaded', async () => {
+              try {
+                const threeObj = e.getObject3D('mesh') || e.getObject3D('model');
+                if (!threeObj) return;
+
+                // detect whether any material already has a map
+                let hasMap = false;
+                threeObj.traverse((node) => {
+                  if (node.isMesh && node.material) {
+                    const mats = Array.isArray(node.material) ? node.material : [node.material];
+                    for (const m of mats) {
+                      if (m && m.map) { hasMap = true; break; }
+                    }
+                  }
+                });
+
+                if (hasMap) return; // already textured
+
+                // try candidates
+                let foundPng = null;
+                for (const u of pngCandidates) {
+                  // convert asset path like /assets/glb/xxx.obj -> same-origin relative path
+                  const url = u.startsWith('/') ? u : u;
+                  // check availability
+                  // Note: this will succeed if the dev server serves the png
+                  // as static file.
+                  // eslint-disable-next-line no-await-in-loop
+                  if (await checkImage(url)) { foundPng = url; break; }
+                }
+
+                if (!foundPng) return;
+
+                // load texture and apply to all mesh materials
+                const loader = new THREE.TextureLoader();
+                loader.load(foundPng, (tex) => {
+                  tex.flipY = false; // OBJ UVs often expect this
+                  threeObj.traverse((node) => {
+                    if (node.isMesh) {
+                      const mats = Array.isArray(node.material) ? node.material : [node.material];
+                      for (const m of mats) {
+                        try {
+                          if (m) {
+                            m.map = tex;
+                            m.needsUpdate = true;
+                          }
+                        } catch (e) { /* ignore */ }
+                      }
+                    }
+                  });
+                });
+              } catch (e) {
+                console.error('Failed to apply PNG texture to OBJ', e);
+              }
+            });
           } else {
             e.setAttribute('gltf-model', o.glb_url);
           }
@@ -54,10 +123,10 @@
           e.setAttribute('material', `color: ${colors[index % colors.length]}; roughness: 0.3; metalness: 0.1`);
         }
         
-        e.setAttribute('position', `${o.x} ${o.y + 0.5} ${o.z}`);
-        e.setAttribute('rotation', (o.rotation || [0,0,0]).join(' '));
-        const sc = o.scale || 1.0; 
-        e.setAttribute('scale', `${sc} ${sc} ${sc}`);
+  e.setAttribute('position', `${o.x} ${o.y + 0.5} ${o.z}`);
+  e.setAttribute('rotation', (o.rotation || [0,0,0]).join(' '));
+  const sc = o.scale || 1.0;
+  e.setAttribute('scale', `${sc} ${sc} ${sc}`);
         e.setAttribute('shadow', 'cast: true; receive: true');
         
         // Quality indicator

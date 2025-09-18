@@ -127,15 +127,40 @@ def run_light_pipeline(tile_image_bytes: bytes) -> Tuple[Path, Dict[str, Any]]:
         except Exception:
             pass
 
-        # If VLM returned only free-text in details[0], prefer using that raw
-        # text directly as a prompt for SD, otherwise use the structured prompt
+        # If VLM returned a raw textual fallback (details[0]), only use it
+        # when it appears substantive and not just noise. Otherwise, use the
+        # structured prompt built from reliable fields. This prevents noisy
+        # free-text (e.g. 'blue abstract car?') from being sent to SD.
         prompt = None
         try:
-            if attrs and getattr(attrs, 'details', None) and len(attrs.details) > 0 and isinstance(attrs.details[0], str) and len(attrs.details[0].strip()) > 20:
-                # Use raw VLM text as a fallback prompt (delegate strategy)
-                prompt = attrs.details[0].strip()
+            raw_text_candidate = None
+            if attrs and getattr(attrs, 'details', None) and len(attrs.details) > 0 and isinstance(attrs.details[0], str):
+                raw_text_candidate = attrs.details[0].strip()
+
+            def _looks_substantive_text(s: str) -> bool:
+                if not s:
+                    return False
+                # too short to be useful
+                if len(s) < 40:
+                    return False
+                # reject if it looks like JSON or bracketed data
+                if s.startswith('{') and s.endswith('}'):
+                    return False
+                # common noisy tokens
+                low = s.lower()
+                for bad in ('abstract', 'unknown', 'maybe', 'not sure', 'idk', 'unsure'):
+                    if bad in low:
+                        return False
+                return True
+
+            if raw_text_candidate and _looks_substantive_text(raw_text_candidate):
+                prompt = raw_text_candidate
             else:
+                # build prompt from structured attributes, filtering placeholders
                 prompt = vlm.to_prompt(attrs)
+                # If vlm.to_prompt returned only the minimal fallback, log that
+                if prompt.startswith('low-poly'):
+                    print(f'[PIPELINE] VLM attributes insufficient; using minimal fallback prompt')
         except Exception:
             prompt = vlm.to_prompt(attrs)
 

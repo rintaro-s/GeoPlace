@@ -428,6 +428,58 @@ def generate_glb_from_image(image_bytes: bytes, out_path: Path, quality: str = '
                     except Exception:
                         pass
 
+        # If there's no .mtl but we have a texture file, create an MTL and ensure
+        # the OBJ references it. Also handle cases where OBJ exists but doesn't
+        # reference any mtllib/usemtl lines.
+        try:
+            mtl_expected = out_path.parent / (out_path.stem + '.mtl')
+            # If there is no mtl present but we have a texture file, generate a simple MTL.
+            if (not mtl_expected.exists()) and tex_path:
+                tex_name = (out_path.stem + tex_path.suffix)
+                try:
+                    with open(mtl_expected, 'w', encoding='utf-8') as mf:
+                        mf.write(f"newmtl material_0\nmap_Kd {tex_name}\n")
+                    with open(logpath, 'a', encoding='utf-8') as lf:
+                        lf.write(f"Generated MTL {mtl_expected} referencing texture {tex_name}\n")
+                except Exception:
+                    pass
+
+            # Ensure the OBJ references the mtllib line. If missing, prepend it.
+            try:
+                txt = obj_out_path.read_text(encoding='utf-8')
+                lines = txt.splitlines()
+                first_few = '\n'.join(lines[0:8])
+                if 'mtllib' not in first_few:
+                    mtl_name = mtl_expected.name if mtl_expected.exists() else ''
+                    if mtl_name:
+                        # Prepend mtllib and ensure a usemtl exists; if no usemtl, add one after header
+                        new_txt = f"mtllib {mtl_name}\n" + txt
+                        if 'usemtl' not in new_txt:
+                            # Find a good insertion point after any comments or o/g lines
+                            insert_idx = 0
+                            for i, line in enumerate(new_txt.splitlines()):
+                                if line.strip().startswith('o ') or line.strip().startswith('g ') or line.strip().startswith('v '):
+                                    insert_idx = i
+                                    break
+                            new_lines = new_txt.splitlines()
+                            # insert usemtl after insert_idx (before geometry)
+                            new_lines.insert(insert_idx, 'usemtl material_0')
+                            new_txt = '\n'.join(new_lines)
+                        obj_out_path.write_text(new_txt, encoding='utf-8')
+                        try:
+                            with open(logpath, 'a', encoding='utf-8') as lf:
+                                lf.write(f"Patched OBJ {obj_out_path} to reference generated MTL {mtl_name}\n")
+                        except Exception:
+                            pass
+            except Exception:
+                try:
+                    with open(logpath, 'a', encoding='utf-8') as lf:
+                        lf.write(f"Failed to ensure mtllib/usemtl for OBJ {obj_out_path}: {traceback.format_exc()}\n")
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
         # Ensure an accompanying .mtl exists. Some TripoSR runs may export an OBJ
         # without an MTL; create one referencing the texture we moved above.
         mtl_expected = out_path.parent / (out_path.stem + '.mtl')
