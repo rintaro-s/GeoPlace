@@ -27,6 +27,241 @@ except Exception:
     trimesh = None
 
 
+def _write_simple_mtl(mtl_path: Path, tex_name: str, material_name: str = 'material_0') -> None:
+    """Write a simple, Blender-friendly MTL referencing tex_name.
+
+    Includes ambient/diffuse/specular coefficients, illum model and map_Kd.
+    """
+    try:
+        with open(mtl_path, 'w', encoding='utf-8') as mf:
+            mf.write(f"newmtl {material_name}\n")
+            mf.write("Ka 1.000 1.000 1.000\n")
+            mf.write("Kd 1.000 1.000 1.000\n")
+            mf.write("Ks 0.000 0.000 0.000\n")
+            mf.write("d 1.0\n")
+            mf.write("illum 2\n")
+            # map_Kd is the diffuse texture map; Blender expects this.
+            mf.write(f"map_Kd {tex_name}\n")
+    except Exception:
+        # Best-effort: ignore failures here; caller may handle logging.
+        pass
+
+
+def _ensure_uvs_in_obj(obj_path: Path) -> None:
+    """If OBJ has no vt entries, generate planar UVs (projected from X/Y) and
+    rewrite face lines to reference those UV indices (v/vt).
+
+    This is a conservative, best-effort approach to make simple meshes visible
+    in Blender when they were exported without UVs.
+    """
+    try:
+        txt = obj_path.read_text(encoding='utf-8', errors='ignore')
+    except Exception:
+        return
+
+    if 'vt ' in txt:
+        return
+
+    lines = txt.splitlines()
+    verts = []
+    out_lines = []
+    in_vertex_block = True
+    # collect vertex lines and remember where to insert vt
+    for i, line in enumerate(lines):
+        if line.startswith('v '):
+            parts = line.split()
+            try:
+                x = float(parts[1]); y = float(parts[2]); z = float(parts[3])
+            except Exception:
+                x = y = z = 0.0
+            verts.append((x, y, z))
+            out_lines.append(line)
+        else:
+            # first non-vertex line -> mark end of vertex block
+            in_vertex_block = False
+            # append the rest as-is for now
+            out_lines.extend(lines[i:])
+            break
+
+    if not verts:
+        return
+
+    # compute bounding box on X/Y for simple normalization
+    xs = [v[0] for v in verts]
+    ys = [v[1] for v in verts]
+    minx, maxx = min(xs), max(xs)
+    miny, maxy = min(ys), max(ys)
+    dx = maxx - minx if maxx != minx else 1.0
+    dy = maxy - miny if maxy != miny else 1.0
+
+    # build vt lines (1-based indexing matches vertex indices)
+    vt_lines = []
+    for (x, y, z) in verts:
+        u = (x - minx) / dx
+        v = (y - miny) / dy
+        # flip V to match many exporters' orientation preference
+        vt_lines.append(f"vt {u:.6f} {1.0 - v:.6f}")
+
+    # Now fix face lines in out_lines: replace 'f a b c' with 'f a/a b/b c/c'
+    fixed_lines = []
+    for line in out_lines:
+        if not line.startswith('f '):
+            fixed_lines.append(line)
+            continue
+        parts = line.split()
+        # parts[0] == 'f'
+        new_face_parts = ['f']
+        for p in parts[1:]:
+            # if already contains '/', leave as-is
+            if '/' in p:
+                new_face_parts.append(p)
+            else:
+                # assume p is an integer vertex index
+                try:
+                    vi = int(p)
+                    new_face_parts.append(f"{vi}/{vi}")
+                except Exception:
+                    new_face_parts.append(p)
+        fixed_lines.append(' '.join(new_face_parts))
+
+    # Reconstruct file: vertex lines + vt lines + rest (with fixed faces)
+    new_lines = []
+    # vertex lines are the first len(verts) lines in original
+    for i in range(len(verts)):
+        new_lines.append(lines[i])
+    # insert vt lines
+    new_lines.extend(vt_lines)
+    # append the remainder (skip the original vertex block)
+    remainder = lines[len(verts):]
+    # replace face lines in remainder with fixed versions where applicable
+    # We'll iterate through remainder and substitute face lines using an index
+    rem_idx = 0
+    for rl in remainder:
+        if rl.startswith('f '):
+            # pop from fixed_lines sequentially starting at first found face
+            # find next fixed face in fixed_lines
+            # search in fixed_lines for a face line not already consumed
+            # simplest: iterate fixed_lines and consume in order
+            # but to keep mapping simple, use the fixed_lines that correspond to remainder
+            # Build mapping by counting f-lines in remainder
+            break
+    # Simpler approach: rebuild remainder by transforming face lines on the fly
+    rebuilt_remainder = []
+    for rl in remainder:
+        if rl.startswith('f '):
+            parts = rl.split()
+            new_face_parts = ['f']
+            for p in parts[1:]:
+                if '/' in p:
+                    new_face_parts.append(p)
+                else:
+                    try:
+                        vi = int(p)
+                        new_face_parts.append(f"{vi}/{vi}")
+                    except Exception:
+                        new_face_parts.append(p)
+            rebuilt_remainder.append(' '.join(new_face_parts))
+        else:
+            rebuilt_remainder.append(rl)
+
+    new_lines.extend(rebuilt_remainder)
+
+    try:
+        obj_path.write_text('\n'.join(new_lines), encoding='utf-8')
+    except Exception:
+        # best-effort; ignore failures
+        pass
+
+
+def _ensure_uv_count_matches_faces(obj_path: Path) -> None:
+    """Ensure that the number of vt entries is at least the maximum vt index
+    referenced in face definitions. If vt entries are missing, generate default
+    planar UVs to fill the gap.
+    """
+    try:
+        txt = obj_path.read_text(encoding='utf-8', errors='ignore')
+    except Exception:
+        return
+
+    lines = txt.splitlines()
+    v_count = 0
+    vt_count = 0
+    # count existing v and vt lines
+    for line in lines:
+        if line.startswith('v '):
+            v_count += 1
+        elif line.startswith('vt '):
+            vt_count += 1
+
+    max_vt_ref = 0
+    # scan face lines for /vt/ or v/vt patterns
+    for line in lines:
+        if line.startswith('f '):
+            parts = line.split()[1:]
+            for p in parts:
+                if '/' in p:
+                    comps = p.split('/')
+                    if len(comps) >= 2 and comps[1]:
+                        try:
+                            vi = int(comps[1])
+                            if vi > max_vt_ref:
+                                max_vt_ref = vi
+                        except Exception:
+                            pass
+
+    # if face references vt indices greater than existing vt_count, append vt lines
+    if max_vt_ref > vt_count:
+        # read vertices to compute planar UVs
+        verts = []
+        for line in lines:
+            if line.startswith('v '):
+                parts = line.split()
+                try:
+                    x = float(parts[1]); y = float(parts[2]); z = float(parts[3])
+                except Exception:
+                    x = y = z = 0.0
+                verts.append((x, y, z))
+
+        if not verts:
+            # fallback: write default UVs of 0.5,0.5
+            add_vt = ['vt 0.5 0.5'] * (max_vt_ref - vt_count)
+        else:
+            xs = [v[0] for v in verts]
+            ys = [v[1] for v in verts]
+            minx, maxx = min(xs), max(xs)
+            miny, maxy = min(ys), max(ys)
+            dx = maxx - minx if maxx != minx else 1.0
+            dy = maxy - miny if maxy != miny else 1.0
+            add_vt = []
+            # generate UVs for additional indices by cycling vertex-based UVs
+            for i in range(vt_count, max_vt_ref):
+                vi = i % len(verts)
+                x, y, z = verts[vi]
+                u = (x - minx) / dx
+                v = (y - miny) / dy
+                add_vt.append(f"vt {u:.6f} {1.0 - v:.6f}")
+
+        # insert add_vt after last v line (or at top if none)
+        out_lines = []
+        inserted = False
+        for line in lines:
+            out_lines.append(line)
+            if not inserted and not line.startswith('v '):
+                # insert before the first non-vertex line
+                # find index
+                idx = out_lines.index(line)
+                out_lines = out_lines[:idx] + add_vt + out_lines[idx:]
+                inserted = True
+                break
+        if not inserted:
+            out_lines.extend(add_vt)
+
+        try:
+            obj_path.write_text('\n'.join(out_lines), encoding='utf-8')
+        except Exception:
+            pass
+
+
 def _find_glb_in_dir(d: Path) -> Optional[Path]:
     # search recursively to handle cases where TripoSR writes into a nested folder (e.g. out/0/...)
     for p in d.rglob('*.glb'):
@@ -437,8 +672,7 @@ def generate_glb_from_image(image_bytes: bytes, out_path: Path, quality: str = '
             if (not mtl_expected.exists()) and tex_path:
                 tex_name = (out_path.stem + tex_path.suffix)
                 try:
-                    with open(mtl_expected, 'w', encoding='utf-8') as mf:
-                        mf.write(f"newmtl material_0\nmap_Kd {tex_name}\n")
+                    _write_simple_mtl(mtl_expected, tex_name, material_name='material_0')
                     with open(logpath, 'a', encoding='utf-8') as lf:
                         lf.write(f"Generated MTL {mtl_expected} referencing texture {tex_name}\n")
                 except Exception:
@@ -471,6 +705,11 @@ def generate_glb_from_image(image_bytes: bytes, out_path: Path, quality: str = '
                                 lf.write(f"Patched OBJ {obj_out_path} to reference generated MTL {mtl_name}\n")
                         except Exception:
                             pass
+                    # Ensure OBJ has UVs so Blender and other importers can map textures
+                    try:
+                        _ensure_uvs_in_obj(obj_out_path)
+                    except Exception:
+                        pass
             except Exception:
                 try:
                     with open(logpath, 'a', encoding='utf-8') as lf:
@@ -487,8 +726,7 @@ def generate_glb_from_image(image_bytes: bytes, out_path: Path, quality: str = '
         if (not mtl_expected.exists()) and tex_path:
             tex_name = (out_path.stem + tex_path.suffix)
             try:
-                with open(mtl_expected, 'w', encoding='utf-8') as mf:
-                    mf.write(f"newmtl material_0\nmap_Kd {tex_name}\n")
+                _write_simple_mtl(mtl_expected, tex_name, material_name='material_0')
             except Exception:
                 pass
 
@@ -502,8 +740,14 @@ def generate_glb_from_image(image_bytes: bytes, out_path: Path, quality: str = '
                     new_txt = f"mtllib {mtl_name}\n" + txt
                     obj_out_path.write_text(new_txt, encoding='utf-8')
         except Exception:
-            # If reading/writing fails, ignore; OBJ will still be present.
             pass
+
+        # After ensuring mtllib lines, also ensure UVs exist (Blender-friendly fallback)
+        try:
+            _ensure_uvs_in_obj(obj_out_path)
+        except Exception:
+            pass
+        
 
         return obj_out_path
 

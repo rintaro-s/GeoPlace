@@ -673,5 +673,80 @@
       "refined": "a1289e7b8b73a7cc1b389daf58452052cb54166819a65aca1bfd424524aebdce_refined.glb",
       "quality": "refined"
     }
+  },
+  {
+    "id": "tile_324_391",
+    "x": 1036.8,
+    "y": 0,
+    "z": 1251.2,
+    "rotation": [
+      0,
+      0,
+      0
+    ],
+    "scale": 1.0,
+    "glb_url": "/assets/glb/b9da3f66cfbc07b1c090059fd3e6324089191748afac8e13d67a080474b0d0bf_refined.glb",
+    "quality": "refined",
+    "meta": {
+      "hash": "b9da3f66cfbc07b1c090059fd3e6324089191748afac8e13d67a080474b0d0bf",
+      "attrs": {
+        "category": "vehicle",
+        "colors": [
+          "blue"
+        ],
+        "size": "large",
+        "orientation": "front",
+        "details": [
+          "car"
+        ]
+      },
+      "prompt": "voxel-style vehicle, large, primary colors: blue, details: car, low-poly, game-friendly, 3D render, front view",
+      "quality": "light",
+      "output": "b9da3f66cfbc07b1c090059fd3e6324089191748afac8e13d67a080474b0d0bf_light.obj",
+      "output_type": "obj"
+    },
+    "meta_refined": {
+      "base": "b9da3f66cfbc07b1c090059fd3e6324089191748afac8e13d67a080474b0d0bf_light.obj",
+      "refined": "b9da3f66cfbc07b1c090059fd3e6324089191748afac8e13d67a080474b0d0bf_refined.glb",
+      "quality": "refined"
+    }
+  },
+  {
+    "id": "tile_326_390",
+    "x": 1043.2,
+    "y": 0,
+    "z": 1248.0,
+    "rotation": [
+      0,
+      0,
+      0
+    ],
+    "scale": 1.0,
+    "glb_url": "/assets/glb/61306b8ac67ba83b9855e4e4993cb49b18b53c88d5f9c415c982b392384b0ddf_refined.glb",
+    "quality": "refined",
+    "meta": {
+      "hash": "61306b8ac67ba83b9855e4e4993cb49b18b53c88d5f9c415c982b392384b0ddf",
+      "attrs": {
+        "category": "fruit",
+        "colors": [
+          "yellow",
+          "green"
+        ],
+        "size": "small",
+        "orientation": "front",
+        "details": [
+          "blemish"
+        ]
+      },
+      "prompt": "voxel-style fruit, small, primary colors: yellow, green, details: blemish, low-poly, game-friendly, 3D render, front view",
+      "quality": "light",
+      "output": "61306b8ac67ba83b9855e4e4993cb49b18b53c88d5f9c415c982b392384b0ddf_light.obj",
+      "output_type": "obj"
+    },
+    "meta_refined": {
+      "base": "61306b8ac67ba83b9855e4e4993cb49b18b53c88d5f9c415c982b392384b0ddf_light.obj",
+      "refined": "61306b8ac67ba83b9855e4e4993cb49b18b53c88d5f9c415c982b392384b0ddf_refined.glb",
+      "quality": "refined"
+    }
   }
 ]

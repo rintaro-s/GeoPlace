@@ -183,6 +183,101 @@
             log('3D World initialized', 'status');
         }
 
+        // --- Helper utilities for robust texture handling ---
+        // Check if an image URL exists and is loadable (handles CORS by using Image)
+        function imageExists(url) {
+            return new Promise((resolve) => {
+                try {
+                    const img = new Image();
+                    img.onload = () => resolve(true);
+                    img.onerror = () => resolve(false);
+                    img.src = url;
+                } catch (e) { resolve(false); }
+            });
+        }
+
+        // Ensure meshes have UVs; if missing, generate simple planar projection UVs based on bbox
+        function ensureUVs(object3d) {
+            try {
+                object3d.traverse((node) => {
+                    if (node.isMesh && node.geometry && node.geometry.isBufferGeometry) {
+                        const geom = node.geometry;
+                        if (!geom.attributes.uv || geom.attributes.uv.count === 0) {
+                            // compute bounding box
+                            if (!geom.boundingBox) geom.computeBoundingBox();
+                            const bbox = geom.boundingBox;
+                            const size = new THREE.Vector3();
+                            bbox.getSize(size);
+                            const pos = geom.attributes.position;
+                            const count = pos.count || (pos.array ? pos.array.length / 3 : 0);
+                            const uvs = new Float32Array(count * 2);
+                            for (let i = 0; i < count; i++) {
+                                const x = pos.getX ? pos.getX(i) : pos.array[i*3];
+                                const y = pos.getY ? pos.getY(i) : pos.array[i*3+1];
+                                const z = pos.getZ ? pos.getZ(i) : pos.array[i*3+2];
+                                // project to XZ plane (upright models) fallback to XY
+                                const u = size.x > 0 ? (x - bbox.min.x) / size.x : 0;
+                                const v = size.z > 0 ? (z - bbox.min.z) / size.z : (size.y > 0 ? (y - bbox.min.y) / size.y : 0);
+                                uvs[i*2] = u;
+                                uvs[i*2+1] = v;
+                            }
+                            geom.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
+                            geom.attributes.uv.needsUpdate = true;
+                        }
+                    }
+                });
+            } catch (e) {
+                console.warn('ensureUVs failed', e);
+            }
+        }
+
+        // Try to apply a texture from a list of candidate URLs to the object if no material map present
+        async function tryApplyTextureToObject(threeObj, candidates) {
+            try {
+                // detect if already has a map
+                let hasMap = false;
+                threeObj.traverse((node) => {
+                    if (node.isMesh && node.material) {
+                        const mats = Array.isArray(node.material) ? node.material : [node.material];
+                        for (const m of mats) if (m && m.map) { hasMap = true; break; }
+                    }
+                });
+                if (hasMap) return true;
+
+                // find first existing candidate
+                let found = null;
+                for (const u of candidates) {
+                    // eslint-disable-next-line no-await-in-loop
+                    if (await imageExists(u)) { found = u; break; }
+                }
+                if (!found) return false;
+
+                // ensure UVs exist before applying
+                ensureUVs(threeObj);
+
+                const loader = new THREE.TextureLoader();
+                return new Promise((resolve) => {
+                    loader.load(found, (tex) => {
+                        try {
+                            tex.flipY = false;
+                            threeObj.traverse((node) => {
+                                if (node.isMesh) {
+                                    const mats = Array.isArray(node.material) ? node.material : [node.material];
+                                    for (const m of mats) {
+                                        try { if (m) { m.map = tex; m.needsUpdate = true; } } catch (e) {}
+                                    }
+                                }
+                            });
+                            resolve(true);
+                        } catch (e) { resolve(false); }
+                    }, undefined, () => { resolve(false); });
+                });
+            } catch (e) {
+                console.warn('tryApplyTextureToObject failed', e);
+                return false;
+            }
+        }
+
     // Canvas mapping: the original canvas.png is very large (22400 x 21966), tile size 32x32 px
     // Backend places objects with: x = tx * tile_size / 10.0, z = ty * tile_size / 10.0
     // We'll use the same scale to keep 2D paint coordinates and 3D world coordinates consistent.
@@ -336,53 +431,15 @@
                                 entity.setAttribute('obj-model', `obj: ${baseUrl + url}`);
                                 entity.setAttribute('scale', '0.6 0.6 0.6');
 
-                                // After model loads, if no material map present, try applying PNG texture
+                                // After model loads, try to apply PNG texture candidates and ensure UVs
                                 entity.addEventListener('model-loaded', async function (evt) {
                                     try {
                                         const threeObj = this.getObject3D('mesh') || this.getObject3D('model');
                                         if (!threeObj) return;
 
-                                        // detect whether any material already has a map
-                                        let hasMap = false;
-                                        threeObj.traverse((node) => {
-                                            if (node.isMesh && node.material) {
-                                                const mats = Array.isArray(node.material) ? node.material : [node.material];
-                                                for (const m of mats) {
-                                                    if (m && m.map) { hasMap = true; break; }
-                                                }
-                                            }
-                                        });
-                                        if (hasMap) return; // already textured via MTL
-
-                                        // try to locate PNG candidates (primary name and fallback)
                                         const pngCandidates = [baseUrl + url.replace(/\.obj$/i, '.png'), baseUrl + url.replace(/\.obj$/i, '_fallback.png')];
-
-                                        // helper to check image availability
-                                        const checkImage = (u) => new Promise((res) => {
-                                            const img = new Image(); img.onload = () => res(true); img.onerror = () => res(false); img.src = u;
-                                        });
-
-                                        let found = null;
-                                        for (const u of pngCandidates) {
-                                            // eslint-disable-next-line no-await-in-loop
-                                            if (await checkImage(u)) { found = u; break; }
-                                        }
-                                        if (!found) return;
-
-                                        // load texture and apply (OBJ uvs expect flipY=false)
-                                        const loader = new THREE.TextureLoader();
-                                        loader.load(found, (tex) => {
-                                            tex.flipY = false;
-                                            threeObj.traverse((node) => {
-                                                if (node.isMesh) {
-                                                    const mats = Array.isArray(node.material) ? node.material : [node.material];
-                                                    for (const m of mats) {
-                                                        try { if (m) { m.map = tex; m.needsUpdate = true; } } catch (e) {}
-                                                    }
-                                                }
-                                            });
-                                        });
-
+                                        // try to apply texture if needed (this will also ensure UVs)
+                                        await tryApplyTextureToObject(threeObj, pngCandidates);
                                     } catch (e) {
                                         console.warn('Failed to apply PNG texture to OBJ', url, e);
                                     }
@@ -448,30 +505,35 @@
 
                                 // Detect GLB binary header 'glTF'
                                 const magic = String.fromCharCode(bytes[0] || 0, bytes[1] || 0, bytes[2] || 0, bytes[3] || 0);
-                                if (magic === 'glTF') {
+                                    if (magic === 'glTF') {
                                     const blob = new Blob([buf], {type: 'model/gltf-binary'});
                                     const blobUrl = URL.createObjectURL(blob);
                                     entity.setAttribute('gltf-model', blobUrl);
                                     entity.setAttribute('scale', '0.6 0.6 0.6');
                                     // attach model-loaded to adjust bbox scaling
-                                    entity.addEventListener('model-loaded', function () {
-                                        try {
-                                            const model = this.getObject3D('mesh') || this.getObject3D('model');
-                                            if (model) {
-                                                const box = new THREE.Box3().setFromObject(model);
-                                                const size = new THREE.Vector3();
-                                                box.getSize(size);
-                                                const maxDim = Math.max(size.x, size.y, size.z);
-                                                if (maxDim > 0) {
-                                                    const target = 2.0 * scaleMultiplier;
-                                                    const factor = target / maxDim;
-                                                    this.object3D.scale.set(factor, factor, factor);
+                                        entity.addEventListener('model-loaded', async function () {
+                                            try {
+                                                const model = this.getObject3D('mesh') || this.getObject3D('model');
+                                                if (model) {
+                                                    // ensure UVs exist for glb before applying any fallback texture
+                                                    ensureUVs(model);
+                                                    const box = new THREE.Box3().setFromObject(model);
+                                                    const size = new THREE.Vector3();
+                                                    box.getSize(size);
+                                                    const maxDim = Math.max(size.x, size.y, size.z);
+                                                    if (maxDim > 0) {
+                                                        const target = 2.0 * scaleMultiplier;
+                                                        const factor = target / maxDim;
+                                                        this.object3D.scale.set(factor, factor, factor);
+                                                    }
+                                                    // try candidate textures: same basename.png and _fallback.png
+                                                    const pngCandidates = [baseUrl + url.replace(/\.glb$/i, '.png'), baseUrl + url.replace(/\.glb$/i, '_fallback.png')];
+                                                    await tryApplyTextureToObject(model, pngCandidates);
                                                 }
+                                            } catch (e) {
+                                                console.warn('Error computing bbox for glb or applying texture', baseUrl + url, e);
                                             }
-                                        } catch (e) {
-                                            console.warn('Error computing bbox for glb', baseUrl + url, e);
-                                        }
-                                    });
+                                        });
                                     // on error, attempt OBJ fallbacks below
                                     entity.addEventListener('model-error', function (evt) {
                                         console.warn('gltf-model failed for blob', baseUrl + url, evt);

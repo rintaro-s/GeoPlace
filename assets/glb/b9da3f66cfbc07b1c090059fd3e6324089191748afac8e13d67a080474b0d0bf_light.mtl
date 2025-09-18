@@ -1,0 +1,7 @@
+newmtl material_0
+Ka 1.000 1.000 1.000
+Kd 1.000 1.000 1.000
+Ks 0.000 0.000 0.000
+d 1.0
+illum 2
+map_Kd b9da3f66cfbc07b1c090059fd3e6324089191748afac8e13d67a080474b0d0bf_light.png
