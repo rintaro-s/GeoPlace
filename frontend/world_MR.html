@@ -3,8 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GeoPlace - 3D World</title>
+    <title>GeoPlace - 3D World (VR/MR)</title>
     <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
+    <!-- Teleport controls for VR controllers -->
+    <script src="https://unpkg.com/aframe-teleport-controls@^5.0.0/dist/aframe-teleport-controls.min.js"></script>
     <style>
         body { margin: 0; overflow: hidden; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
         
@@ -68,7 +70,7 @@
 </head>
 <body>
     <div id="ui">
-        <h3>🌍 3D World</h3>
+        <h3>🌍 3D World (VR/MR)</h3>
         <div id="status">Loading...</div>
         <div>Objects: <span id="object-count">0</span></div>
     <div>Position: <span id="position">0, 0, 0</span></div>
@@ -98,17 +100,21 @@
         </div>
     </div>
 
+    <!-- MR-capable scene: VR UI enabled, WebXR optional features, and teleport/laser controllers -->
     <a-scene 
         background="color: #87CEEB"
         fog="type: linear; color: #87CEEB; near: 50; far: 200"
-        vr-mode-ui="enabled: false">
+        vr-mode-ui="enabled: true"
+        renderer="colorManagement: true; physicallyCorrectLights: true"
+        webxr="optionalFeatures: local-floor">
         
         <!-- Lighting -->
         <a-light type="ambient" color="#404040"></a-light>
         <a-light type="directional" position="10 20 10" color="#ffffff" intensity="0.8"></a-light>
         
-        <!-- Ground: use the large canvas.png as a single texture mapped to the plane -->
+        <!-- Ground: teleportable for VR controllers -->
         <a-plane id="ground-plane"
+            class="teleportable"
             position="0 -0.5 0"
             rotation="-90 0 0"
             width="100"
@@ -122,14 +128,30 @@
             <!-- Grid lines will be added dynamically -->
         </a-entity>
         
-        <!-- Camera with movement controls -->
+        <!-- Camera with movement controls and gaze/mouse cursor for desktop fallback -->
         <a-entity id="camera-rig" position="0 1.6 5">
             <a-camera 
                 id="camera"
                 look-controls="pointerLockEnabled: true"
                 wasd-controls="fly: true; acceleration: 80"
                 position="0 0 0">
+                <!-- Add a cursor for desktop and gaze interaction -->
+                <a-entity cursor="fuse: false; rayOrigin: mouse" 
+                          raycaster="objects: .clickable" 
+                          position="0 0 -1"
+                          geometry="primitive: ring; radiusInner: 0.01; radiusOuter: 0.02"
+                          material="color: #fff; shader: flat">
+                </a-entity>
             </a-camera>
+        </a-entity>
+
+        <!-- Controller entities: laser + teleport support -->
+        <a-entity id="left-hand" hand-controls="left" laser-controls="hand: left" 
+                  teleport-controls="cameraRig: #camera-rig; collisionEntities: .teleportable; button: grip; type: parabolic; curveShootingSpeed: 10">
+        </a-entity>
+
+        <a-entity id="right-hand" hand-controls="right" laser-controls="hand: right" 
+                  teleport-controls="cameraRig: #camera-rig; collisionEntities: .teleportable; button: trigger; type: direct">
         </a-entity>
         
         <!-- Objects container -->
@@ -186,7 +208,7 @@
             // Setup position tracking
             setInterval(updatePosition, 1000);
             
-            log('3D World initialized', 'status');
+            log('3D World (VR/MR) initialized', 'status');
         }
 
         // --- Helper utilities for robust texture handling ---
@@ -405,6 +427,8 @@
                 const obj = objects[index];
                 const entity = document.createElement('a-entity');
                 entity.setAttribute('id', `object-${obj.id || index}`);
+                // make interactable by raycasters / cursor
+                try { entity.classList.add('clickable'); } catch(e){}
 
                 // Apply display scaling so object positions align with ground plane scaling
                 const px = (obj.x || 0) * scaleMultiplier;

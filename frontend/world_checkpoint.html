@@ -186,6 +186,26 @@
             // Setup position tracking
             setInterval(updatePosition, 1000);
             
+            // Add a global error handler to catch uncaught exceptions that
+            // could stop A-Frame from rendering silently in some browsers.
+            window.addEventListener('error', function (ev) {
+                console.error('[GlobalError]', ev.error || ev.message, ev.filename + ':' + ev.lineno);
+                log('エラー発生: ' + (ev.message || String(ev.error)), 'error');
+            });
+
+            // Ensure camera is reasonably placed (some scale computations can move the ground
+            // far away; if camera is very distant or NaN, reset to a sane default so the scene
+            // remains visible).
+            try {
+                const pos = cameraRig.getAttribute('position') || {x:0,y:1.6,z:5};
+                const outOfBounds = (n)=> (!isFinite(n) || Math.abs(n) > 1e6);
+                if (!pos || outOfBounds(pos.x) || outOfBounds(pos.y) || outOfBounds(pos.z)) {
+                    cameraRig.setAttribute('position','0 1.6 5');
+                }
+            } catch (e) {
+                try { cameraRig.setAttribute('position','0 1.6 5'); } catch(e2){}
+            }
+
             log('3D World initialized', 'status');
         }
 
@@ -403,6 +423,7 @@
 
             for (let index = 0; index < objects.length; index++) {
                 const obj = objects[index];
+                try {
                 const entity = document.createElement('a-entity');
                 entity.setAttribute('id', `object-${obj.id || index}`);
 
@@ -653,7 +674,19 @@
                 listItem.textContent = `${obj.id || index}: (${Math.round(px)}, ${Math.round(py)}, ${Math.round(pz)})`;
                 listItem.onclick = () => focusOnObject(obj);
                 objectList.appendChild(listItem);
-            }
+                } catch (objErr) {
+                    // Log and continue with the next object. This prevents a single
+                    // malformed object or unexpected exception from stopping render.
+                    console.error('[renderObjects] object render failed for index', index, objErr);
+                    try {
+                        const li = document.createElement('div');
+                        li.className = 'object-item';
+                        li.textContent = `Error rendering object ${obj && (obj.id || index)}`;
+                        li.style.color = '#f88';
+                        objectList.appendChild(li);
+                    } catch (e) {}
+                    continue;
+                }
         }
         
         function focusOnObject(obj) {

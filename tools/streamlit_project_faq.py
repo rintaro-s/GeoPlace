@@ -110,20 +110,13 @@ def traverse_and_render(node: Dict[str, Any], path: List[str] = []):
         filtered = children
 
     # Use a selectbox to avoid long radio lists that can break layout
-    # Instead of a single selectbox, render immediate buttons for filtered items to allow one-click jump
-    cols = st.columns(1)
-    # limit buttons per row to avoid huge layouts - but show as many as fit vertically
-    max_show = 200
-    shown = filtered[:max_show]
-    for item in shown:
-        if st.button(item, key='btn_' + '_'.join(path + [item])):
-            st.session_state['faq_path'] = path + [item]
-            return
-    if len(filtered) > max_show:
-        st.write(f'表示を省略しました（{len(filtered)-max_show} 件）。検索で絞り込んでください。')
-    # allow clearing (unique key per path)
-    if st.button('トップに戻る', key='home_' + '_'.join(path)):
-        st.session_state['faq_path'] = []
+    choice = st.selectbox('選択してください', ['-- なし --'] + filtered, key='sel_' + '_'.join(path))
+    if choice and choice != '-- なし --':
+        st.session_state['faq_path'] = path + [choice]
+    else:
+        # allow clearing
+        if st.button('トップに戻る', key='home_' + '_'.join(path)):
+            st.session_state['faq_path'] = []
 
 
 def main():
@@ -146,16 +139,6 @@ def main():
         node = faq_tree
         for p in st.session_state['faq_path']:
             node = node.get(p, {})
-        # Quick-jump UI: top-level category buttons
-        st.markdown('**カテゴリへ一発ジャンプ**')
-        top_cols = st.columns(2)
-        tops = list(faq_tree.keys())
-        for i, cat in enumerate(tops):
-            if top_cols[i % 2].button(cat, key='topbtn_' + cat):
-                st.session_state['faq_path'] = [cat]
-                return
-
-        st.markdown('---')
         traverse_and_render(node, st.session_state['faq_path'])
 
     with col2:
@@ -173,39 +156,6 @@ def main():
             # show some high-level counts
             total = sum(1 for _ in iter_faq_leaves(faq_tree))
             st.write(f'現在のFAQ項目数: {total}')
-            # Quick global search results
-            st.markdown('### Quick Jump 検索結果')
-            q = st.text_input('ここでキーワードを入れて瞬時にジャンプ', key='global_search')
-            if q:
-                matches = []
-                # collect up to 50 matches
-                for leaf, path in build_index(faq_tree):
-                    if q.lower() in leaf.lower():
-                        matches.append((leaf, path))
-                        if len(matches) >= 50:
-                            break
-                if not matches:
-                    st.write('該当なし')
-                else:
-                    for title, path in matches:
-                        if st.button(title, key='jump_' + '_'.join(path)):
-                            st.session_state['faq_path'] = path
-                            return
-
-
-def build_index(node: Dict[str, Any], path: List[str] = None):
-    """Yield (leaf_title, full_path_list) pairs for all QA leaves."""
-    if path is None:
-        path = []
-    if not isinstance(node, dict):
-        return
-    if 'q' in node and 'a' in node:
-        yield (node['q'], path)
-        return
-    for k, v in node.items():
-        if k.startswith('_'):
-            continue
-        yield from build_index(v, path + [k])
 
 
 def iter_faq_leaves(node: Dict[str, Any]):
