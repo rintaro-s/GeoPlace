@@ -692,3 +692,43 @@ async def startup_load_models():
             model_status['sd_loaded'] = False
             model_status['sd_error'] = str(e)
     threading.Thread(target=_load, daemon=True).start()
+
+
+# ---- Search API (semantic search over VLM logs) ----
+@router.get('/search')
+async def api_search(q: str, top_k: int = 5, target: str | None = None):
+    try:
+        from .models import search as searchmod
+        lm_url = getattr(settings, 'VLM_URL', None)
+        lm_token = getattr(settings, 'VLM_TOKEN', None)
+        # allow optional 'target' param to tune prompts (e.g. paint, world_new)
+        # forward target (may be used to tailor prompts for different frontends)
+        results = searchmod.search_similar(q, top_k=top_k, lm_url=lm_url, lm_token=lm_token, target=target)
+        return {'query': q, 'results': results}
+    except Exception as e:
+        return JSONResponse({'error': str(e)}, status_code=500)
+
+
+@app.get('/api/search')
+async def api_search_wr(q: str, top_k: int = 5, target: str | None = None):
+    return await api_search(q, top_k, target)
+
+
+@router.get('/format_prompt')
+async def api_format_prompt(q: str):
+    """Return a formatted LMStudio payload (system+user messages) enforcing translation and output rules.
+
+    Useful for debugging and for frontends that want to preview the prompt that will be sent to LM.
+    """
+    try:
+        from .models import search as searchmod
+        candidates = searchmod._build_candidates_from_logs()
+        payload = searchmod.format_for_lmstudio(q, candidates)
+        return payload
+    except Exception as e:
+        return JSONResponse({'error': str(e)}, status_code=500)
+
+
+@app.get('/api/format_prompt')
+async def api_format_prompt_wr(q: str):
+    return await api_format_prompt(q)

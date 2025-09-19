@@ -78,6 +78,12 @@
     
     <div id="controls">
         <h4>Controls</h4>
+        <div style="margin-bottom:8px">
+            <input id="search-input" type="text" placeholder="似てる絵を検索してみよう（例: 赤い家）" style="width:160px;padding:6px;border-radius:4px;border:1px solid #666"> 
+            <button onclick="doSearch()">🔎 Search</button>
+            <button onclick="window.open('/tools/faq.html','_blank')" title="FAQを開く">❓ FAQ</button>
+            <div id="search-results" style="max-height:200px; overflow:auto; margin-top:6px; font-size:12px; color:#fff"></div>
+        </div>
         <button onclick="refreshObjects()">🔄 Refresh</button>
         <button onclick="resetCamera()">📷 Reset View</button>
         <button onclick="window.open('/paint', '_blank')">🎨 Paint Tool</button>
@@ -671,6 +677,51 @@
                 }
             }, dur + 50);
             log(`Focusing on object at (${obj.x}, ${obj.y}, ${obj.z})`, 'info');
+        }
+
+        // --- Search integration ---
+        async function doSearch() {
+            const q = document.getElementById('search-input').value.trim();
+            if (!q) return;
+            const resultsDiv = document.getElementById('search-results');
+            resultsDiv.innerHTML = '検索中…';
+            try {
+                const resp = await fetch('/api/search?q=' + encodeURIComponent(q) + '&top_k=10&target=world_new');
+                if (!resp.ok) throw new Error('HTTP ' + resp.status);
+                const j = await resp.json();
+                const res = j.results || [];
+                if (!res.length) {
+                    resultsDiv.innerHTML = '<div>見つからなかったよ〜 😊</div>';
+                    return;
+                }
+                resultsDiv.innerHTML = '';
+                for (const r of res) {
+                    // skip zero-score results (server indicates non-match)
+                    if ((r.score || 0) <= 0.0) continue;
+                    const el = document.createElement('div');
+                    el.style.padding = '6px';
+                    el.style.borderBottom = '1px solid #333';
+                    el.style.cursor = 'pointer';
+                    const txt = (r.text || '').slice(0,120).replace(/\n/g,' ');
+                    const commentHtml = r.comment ? `<div style="color:#ffddc1;font-size:12px;margin-top:4px">${r.comment}</div>` : '';
+                    el.innerHTML = `<div style="font-size:13px">${(r.score||0).toFixed(2)} — ${txt}</div>` + commentHtml;
+                    el.onclick = () => {
+                        // try to focus on coords if available
+                        if (r.coords && Array.isArray(r.coords) && r.coords.length>=2) {
+                            const [x,y] = r.coords;
+                            // Create a dummy object to reuse focus logic (y axis mapping may vary)
+                            focusOnObject({x: x, y: 0, z: y});
+                        } else if (r.id) {
+                            // try to find object by id in objects list
+                            const found = objects.find(o => o.id == r.id);
+                            if (found) focusOnObject(found);
+                        }
+                    };
+                    resultsDiv.appendChild(el);
+                }
+            } catch (e) {
+                resultsDiv.innerHTML = '<div class="error">検索に失敗しました: ' + e.message + '</div>';
+            }
         }
         
         function updatePosition() {

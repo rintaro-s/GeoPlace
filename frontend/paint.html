@@ -225,6 +225,14 @@
       <h4>接続状態</h4>
       <div class="status-area" id="connectionStatus">接続中...</div>
     </div>
+
+    <div class="tool-section">
+      <h4>似た絵を検索</h4>
+      <input id="paint-search-input" type="text" placeholder="例: 赤い家" />
+      <button id="paint-search-btn">🔎 検索</button>
+      <button id="open-faq-btn" onclick="window.open('/tools/faq.html','_blank')">❓ FAQ</button>
+      <div id="paint-search-results" style="margin-top:8px; max-height:160px; overflow:auto; color:#fff; font-size:13px"></div>
+    </div>
     
     <div class="tool-section">
       <h4>操作ガイド</h4>
@@ -1409,6 +1417,45 @@
     // Initialize
     initCanvas();
     connectWS();
+
+    // Search handler for paint UI
+    document.getElementById('paint-search-btn').addEventListener('click', async () => {
+      const q = document.getElementById('paint-search-input').value.trim();
+      const resultsDiv = document.getElementById('paint-search-results');
+      resultsDiv.innerHTML = '検索中...';
+      if (!q) { resultsDiv.innerHTML = ''; return; }
+      try {
+    const resp = await fetch('/api/search?q=' + encodeURIComponent(q) + '&top_k=10&target=paint');
+        if (!resp.ok) throw new Error('HTTP ' + resp.status);
+        const j = await resp.json();
+        const res = j.results || [];
+        resultsDiv.innerHTML = '';
+        if (!res.length) { resultsDiv.innerHTML = '<div>見つからなかったよ〜</div>'; return; }
+        for (const r of res) {
+          // skip zero-score results
+          if ((r.score || 0) <= 0.0) continue;
+          const el = document.createElement('div');
+          el.style.padding = '6px';
+          el.style.borderBottom = '1px solid #333';
+          el.style.cursor = 'pointer';
+          const txt = (r.text||'').slice(0,120).replace(/\n/g,' ');
+          const comment = r.comment ? `<div style="color:#ffddc1;margin-top:4px;font-size:13px">${r.comment}</div>` : '';
+          el.innerHTML = `<div>${(r.score||0).toFixed(2)} — ${txt}</div>` + comment;
+          el.onclick = () => {
+            if (r.coords && Array.isArray(r.coords) && r.coords.length>=2) {
+              const [x,y] = r.coords;
+              // center canvas so that (x,y) is visible
+              offsetX = Math.max(0, Math.min(CANVAS_WIDTH - canvas.width / zoom, x - canvas.width / zoom / 2));
+              offsetY = Math.max(0, Math.min(CANVAS_HEIGHT - canvas.height / zoom, y - canvas.height / zoom / 2));
+              throttledRender();
+            }
+          };
+          resultsDiv.appendChild(el);
+        }
+      } catch (e) {
+        resultsDiv.innerHTML = '<div class="error">検索エラー: ' + e.message + '</div>';
+      }
+    });
   </script>
 </body>
 </html>
