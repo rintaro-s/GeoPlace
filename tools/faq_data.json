@@ -1,0 +1,77 @@
+{
+  "generated_at": "2025-09-19T00:00:00Z",
+  "genres": [
+    {
+      "name": "バックエンド",
+      "subs": [
+        {
+          "name": "起動とAPI",
+          "qas": [
+            {
+              "question": "サーバをローカルで起動する最短コマンドは？",
+              "answer": "概要:\nプロジェクトのバックエンドは Uvicorn 経由で起動します。\n\n手順:\n1) リポジトリのルートに移動します。\n2) (推奨) 仮想環境を有効化します。\n3) 次のコマンドを実行します: python -m uvicorn backend.main:app --host 127.0.0.1 --port 8001\n\n詳細と注意点:\n- Windows の PowerShell では、出力の文字化けを防ぐため chcp 65001 を実行しておくとよいです。\n- 既にポートが使用中の場合はエラーとなるためポート番号を変更してください。\n\n関連ファイル:\n- backend/main.py"
+            },
+            {
+              "question": "/api/search の戻り値の形式は？",
+              "answer": "概要:\n/api/search は文字列クエリを受け取り、候補一覧を返します。レスポンスは JSON で、results 配列内にオブジェクトが含まれます。\n\nスキーマ(例):\n{\n  \"query\": \"赤い家\",\n  \"results\": [\n    { \"id\": 123, \"text\": \"赤い屋根の家\", \"score\": 0.76, \"coords\": [345,678], \"comment\": \"ねえ…これ、似てるよ？\" }\n  ]\n}\n\n解説:\n- score は内部で計算された類似度(コサイン等)を表します。\n- coords が存在するとフロントエンドは自動でカメラ移動に利用できます。\n\n関連ファイル:\n- backend/models/search.py"
+            },
+            {
+              "question": "objects.json はどこにあり、どの形式ですか？",
+              "answer": "概要:\nobjects.json は assets/glb/objects.json に置かれることが多く、各エントリはモデルの配置とメタ情報を持ちます。\n\n形式(抜粋例):\n[\n  { \"id\": 1, \"glb_url\": \"assets/glb/model.glb\", \"x\":0, \"y\":0, \"z\":0, \"meta\": {\"source\": \"tripo\"} }\n]\n\n運用上のポイント:\n- 同時更新は race condition を発生させるため、バックエンドでロックまたは一貫した API を用いて更新してください。\n\n関連ファイル:\n- assets/glb/objects.json, backend/main.py"
+            }
+          ]
+        },
+        {
+          "name": "ジョブとログ",
+          "qas": [
+            {
+              "question": "ジョブ (generate) の開始から進捗確認までの流れは？",
+              "answer": "概要:\ngenerate ジョブは API を介してキューに追加され、バックエンドのワーカが処理します。\n\n手順:\n1) クライアントが /api/generate にリクエストを送る。\n2) バックエンドはジョブ ID を返し、ジョブを内部キューに登録する。\n3) ThreadPoolExecutor などでワーカがジョブを処理。\n4) 進捗は WebSocket (/ws) またはポーリング用の /api/job_status で参照可能。\n\n実装ノート:\n- 途中で失敗した場合、ログと job.status を確認して再実行やロールバックを行ってください。\n\n関連ファイル:\n- backend/main.py"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "フロントエンド",
+      "subs": [
+        {
+          "name": "world_new",
+          "qas": [
+            {
+              "question": "world_new.html を開くと何が表示される？",
+              "answer": "概要:\nworld_new.html は A-Frame を使った 3D シーンです。assets/glb/objects.json を読み込んで複数のモデルを配置し、ユーザが視点を移動できます。\n\n主な処理:\n1) objects.json を fetch する。\n2) 各エントリごとにエンティティを生成し、gltf-model か obj-model を設定。\n3) 読み込み完了後にモデルの bounding box を計算して衝突判定や縮尺を調整します。\n\n関連ファイル:\n- frontend/world_new.html"
+            },
+            {
+              "question": "OBJ+PNG の場合にテクスチャを当てる方法は？",
+              "answer": "概要:\nOBJ に MTL が付与されていない場合、PNG を手動でロードしてマテリアルの texture map として割り当てます。three.js では TextureLoader を使います。\n\n手順(概略):\n1) OBJ を OBJLoader で読み込む。\n2) TextureLoader で対応する PNG を読み込む。\n3) メッシュのマテリアルを生成し、map プロパティに texture をセット。\n4) material.needsUpdate = true を呼ぶ。\n\nコード抜粋(例):\nconst tex = new THREE.TextureLoader().load(pngUrl);\nmesh.material = new THREE.MeshStandardMaterial({ map: tex });\nmesh.material.needsUpdate = true;\n\n関連ファイル:\n- frontend/world_new.html"
+            }
+          ]
+        },
+        {
+          "name": "paint",
+          "qas": [
+            {
+              "question": "paint.html でタイルをクリックしたら何が起きる？",
+              "answer": "概要:\npaint UI は大きい canvas.png を小タイルに分割して表示します。ユーザがタイルを選択・編集すると、そのタイル情報を /api/paint に送信します。\n\n手順:\n1) タイル座標 (tx, ty) を計算。\n2) 変更したピクセルデータを base64 またはバイナリでサーバに送信。\n3) サーバは画像を再合成し、キャッシュを更新してフロントに反映する。\n\n関連ファイル:\n- frontend/paint.html, backend/main.py"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "モデル",
+      "subs": [
+        {
+          "name": "VLM",
+          "qas": [
+            {
+              "question": "VLM ログから候補を作る処理はどこ？",
+              "answer": "概要:\nVLM ログの読み取りと候補生成は backend/models/search.py に実装されています。_read_vlm_logs がログを読み、_build_candidates_from_logs が候補を整形します。\n\n手順(簡易):\n1) backend/cache/vlm_logs/*.json を列挙して読み込み。\n2) 各ログからメタ情報・埋め込みベクトルを抽出。\n3) クエリベクトルとコサイン類似度で上位候補を選出。\n\n関連ファイル:\n- backend/models/search.py"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

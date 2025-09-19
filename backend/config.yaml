@@ -35,3 +35,6 @@ VLM_URL: "http://localhost:1234/v1/chat/completions"  # LMStudio の標準エン
 VLM_TOKEN: null  # 認証トークン（LMStudio で必要な場合）
 VLM_TIMEOUT: 15  # タイムアウト秒数
 VLM_RETRIES: 3   # リトライ回数
+# Optional: PUBLIC_URL can be set when exposing the local server via a tunnel (eg. ngrok).
+# Example: PUBLIC_URL: "https://abcd-1234.ngrok-free.app"
+PUBLIC_URL: http://rinnas.f5.si:8001

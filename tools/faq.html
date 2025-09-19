@@ -4,26 +4,37 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>GeoPlace - Offline FAQ</title>
-  <style>
-    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial; margin:0; height:100vh; display:flex;}
-    header{padding:12px 16px; background:#0b5; color:#003; font-weight:700}
-    #container{display:flex; flex:1; height:calc(100vh - 48px)}
-    #left{width:260px;border-right:1px solid #ddd;padding:12px; box-sizing:border-box; overflow:auto}
-    #center{width:360px;border-right:1px solid #eee;padding:12px; box-sizing:border-box; overflow:auto}
-    #right{flex:1;padding:12px;box-sizing:border-box; overflow:auto}
-    .panel-title{font-size:14px;margin-bottom:8px;font-weight:600}
-    select,input[type=text]{width:100%;padding:8px;margin-bottom:8px;border-radius:6px;border:1px solid #ccc}
+    <style>
+    :root{--accent:#0b5;--muted:#666;--bg:#fafbfd;--panel:#fff;--code-bg:#0f1720;--code-fg:#e6eef6}
+    html,body{height:100%;margin:0;font-family:Inter, system-ui, -apple-system, 'Segoe UI', Roboto, 'Hiragino Kaku Gothic ProN', 'Noto Sans JP', sans-serif;background:var(--bg);color:#0b1220}
+    header{padding:14px 18px;background:linear-gradient(90deg,var(--accent),#07a);color:white;font-weight:700;font-size:16px}
+    #container{display:grid;grid-template-columns:260px 420px 1fr;gap:12px;padding:12px;height:calc(100vh - 56px);box-sizing:border-box}
+    #left,#center,#right{background:var(--panel);border-radius:10px;box-shadow:0 6px 18px rgba(16,24,40,0.06);padding:12px;overflow:auto}
+    .panel-title{font-size:13px;margin-bottom:8px;font-weight:700;color:#062}
+    select,input[type=text]{width:100%;padding:10px;margin-bottom:10px;border-radius:8px;border:1px solid #e6eef6;background:#fbfeff}
     ul{list-style:none;padding:0;margin:0}
-    li.item{padding:8px;border-radius:6px;margin-bottom:6px;cursor:pointer}
-    li.item:hover{background:#f0f8ff}
-    li.item.selected{background:#dfefff;border-left:4px solid #0b5;padding-left:6px}
-    .meta{font-size:12px;color:#666;margin-top:6px}
-    .answer{white-space:pre-wrap;font-size:14px}
-    .small{font-size:13px;color:#444}
-    .search-hint{font-size:12px;color:#666;margin-top:6px}
-    .pill{display:inline-block;padding:4px 8px;background:#efefef;border-radius:999px;margin-right:6px;font-size:12px}
-    .btn{display:inline-block;padding:8px 12px;background:#0b5;color:white;border-radius:6px;text-decoration:none}
-    footer{padding:8px 12px;font-size:12px;color:#444;border-top:1px solid #eee}
+    li.item{padding:10px;border-radius:8px;margin-bottom:8px;cursor:pointer;border:1px solid #f1f5f9}
+    li.item:hover{background:#f5fbff;border-color:#e6f5ff}
+    li.item.selected{background:linear-gradient(90deg,#f0fbff,#eef9ff);border-left:4px solid var(--accent);padding-left:12px}
+    .meta{font-size:12px;color:var(--muted);margin-top:8px}
+    .answer{white-space:pre-wrap;font-size:14px;line-height:1.5;color:#072}
+    .small{font-size:12px;color:#5b6b73}
+    .search-hint{font-size:12px;color:var(--muted);margin-top:6px}
+    .pill{display:inline-block;padding:4px 8px;background:#f3f7f9;border-radius:999px;margin-right:6px;font-size:12px;color:#294}
+    .btn{display:inline-block;padding:8px 12px;background:var(--accent);color:white;border-radius:8px;text-decoration:none;border:none;cursor:pointer}
+    pre.code{background:var(--code-bg);color:var(--code-fg);padding:10px;border-radius:8px;overflow:auto;font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, 'Roboto Mono', 'Noto Sans Mono', monospace;font-size:13px}
+    .file-actions{margin-top:8px;display:flex;gap:8px;align-items:center}
+    .file-actions .btn.secondary{background:#6b7280}
+    footer{padding:10px 14px;font-size:12px;color:var(--muted);border-top:1px solid #eef2f7}
+    @media(max-width:1000px){#container{grid-template-columns:1fr}} 
+    </style>
+  <style>
+  /* QA card styles */
+  .qa-card{border-radius:8px;background:#fff;border:1px solid #e6eef6;padding:8px;margin-bottom:10px}
+  .qa-header{font-weight:700;color:#083;padding:8px 4px;border-bottom:1px dashed #eef3f7}
+  .qa-body{padding:8px 4px;display:flex;flex-wrap:wrap}
+  .qa-row{margin-bottom:6px}
+  .qa-expanded{margin-top:12px;background:#fbfffc;padding:10px;border-radius:8px;border:1px solid #e8f7ed}
   </style>
 </head>
 <body>
@@ -34,17 +45,18 @@
   <select id="genreSelect" size="8"></select>
   <div class="panel-title">サブカテゴリ</div>
   <select id="subgenreSelect" size="6"></select>
+  <div id="subgenreLabel" class="small meta" style="margin-top:6px">選択されたサブカテゴリ: <span id="subgenreName">-</span></div>
   <div class="panel-title">検索（全文）</div>
   <input type="text" id="searchBox" placeholder="キーワードで検索（例: world_new、VLM、TripoSR）">
       <div class="search-hint">検索はジャンル/サブジャンルをまたいで実行されます。キーボードで選択を切り替えられます。</div>
     </div>
     <div id="center">
       <div class="panel-title">質問一覧 <span id="count" class="small"></span></div>
-      <ul id="questionList"></ul>
+      <div id="questionList"></div>
     </div>
     <div id="right">
       <div class="panel-title">回答</div>
-      <div id="answerArea" class="answer">質問を選択してください。</div>
+  <div id="answerArea" class="answer">質問を選択してください。</div>
       <div style="margin-top:12px">
         <button id="copyBtn" class="btn">回答をコピー</button>
         <a id="openRepo" class="btn" style="background:#337ab7;margin-left:8px" href="#" target="_blank">リポジトリを開く（既定のブラウザ）</a>
@@ -55,434 +67,33 @@
   <footer style="font-size:12px;color:#666;padding:6px 12px">静的 FAQ（自動生成テンプレート含む）</footer>
 
   <script>
-    // データ生成: 実用的で重要度の高い Q&A を 200 件生成します（10 ジャンル x 20 質問）
-    const genres = [];
+    // FAQ データは外部 JSON (faq_data.json) から読み込みます。
+    // ブラウザで動作させる場合は、faq.html と同じディレクトリに faq_data.json を配置し、HTTP 経由で配信してください。
+    let genres = [];
     const repoRoot = 'C:/Users/s-rin/Documents/GitHub/GeoPlace';
 
-    // ジャンル一覧（重要度の高いトピックを選定）
-    const categoryDefs = [
-      { name: 'バックエンド', focus: 'API, ジョブ, パイプライン, キャッシュ, ログ' },
-      { name: 'フロントエンド', focus: 'world_new, paint, loaders, A-Frame' },
-      { name: 'モデル', focus: 'VLM, SD, TripoSR, Open3D' },
-      { name: '検索', focus: 'VLM ログ, キーワードベース, LMStudio' },
-      { name: 'アセット', focus: 'OBJ/GLB/PNG, テクスチャ, UV' },
-      { name: 'デプロイ', focus: '起動, ポート, Windows, PowerShell' },
-      { name: 'トラブルシューティング', focus: 'エラー, 404, CORS, placeholder' },
-      { name: 'パフォーマンス', focus: 'タイルキャッシュ, 同時実行, メモリ' },
-      { name: 'セキュリティ', focus: 'トークン, 鍵, 安全実行' },
-      { name: '拡張', focus: 'モデル追加, UI追加, テスト' }
-    ];
-
-    // Templates for question stems per category (20 per category will be created programmatically)
-    const qTemplates = {
-      'バックエンド': [
-        'サーバをローカルで起動する最短コマンドは？',
-        '/api/search の戻り値の形式は？',
-        'objects.json はどこにあり、どの形式ですか？',
-        'ジョブ (generate) の開始から進捗確認までの流れは？',
-        'WebSocket /ws で受け取るメッセージ例は？',
-        'backend/cache/vlm_logs の用途は？',
-        'GLB が placeholder になるケースは？',
-        'tile 画像はどの順序で参照される？',
-        'paint API (/api/paint) に渡す pixels の形は？',
-        'modified_tiles の扱いは？',
-        'objects.json を更新する責任はどのコンポーネント？',
-        'jobs をキャンセルするには？',
-        'どうやって model を起動時に pre-load する？',
-        'executor の max_workers はどこで設定？',
-        'assets と data ディレクトリの役割の違いは？',
-        'get_tile_image のフォールバック挙動は？',
-        'HTTP で GLB を返す際の placeholder 判定は？',
-        'objects.json の同時書き込み対策は？',
-        'ログの保存先と debug 用ファイルはどこ？',
-        'API を外部公開する際の最低注意点は？'
-      ],
-  'フロントエンド': [
-        'world_new.html を開くと何が表示される？',
-        'paint.html でタイルをクリックしたら何が起きる？',
-        'OBJ+PNG の場合にテクスチャを当てる方法は？',
-        'UV が無いメッシュへのフォールバックは？',
-        'クリックでカメラを移動させる仕組みは？',
-        'search 結果をクリックして座標へ移動する処理は？',
-        '大きな canvas.png を ground に貼る方法は？',
-        'GLB が壊れているときのフォールバック手順は？',
-        'createTexturedPlaneFallback は何をする？',
-        'A-Frame で model-loaded イベントを使う理由は？',
-        'front-end から /api/search へ渡す target パラメータとは？',
-        'ブラウザで file:// と http:// の違いで気をつけることは？',
-        'search UI が 0.00 結果を隠す基準は？',
-        'ground plane のスケーリングと座標対応は？',
-        'ensureUVs の簡易実装はどう動く？',
-        'three.js の TextureLoader を使う利点は？',
-        'createGrid が行っていることは？',
-        'デモモデルの扱い（scale/animation）のポイントは？',
-        'cursor-listener コンポーネントの役割は？',
-        'デバッグ用に何をコンソールに出している？'
-      ],
-  'モデル': [
-        'VLM ログから候補を作る処理はどこ？',
-        'JP→EN マッピングの目的は？',
-        'LMStudio を使う時に必要な設定は？',
-        'keyword baseline と LM の統合戦略は？',
-        'コメント（妹口調）を付けるロジックのルールは？',
-        'LM のレスポンスが不正な JSON のときの対処は？',
-        'search_similar の最終的な返り値の形は？',
-        'VLM のログがない場合の挙動は？',
-        'last_lm_parse_debug.json はどこに出る？',
-        'コメントの重複を避ける方法は？',
-        'スコア閾値のデフォルトは？',
-        'キーワード検索のトークン化の工夫は？',
-        'LM が低品質ならどうする？',
-        '候補の dedupe は何を基準にしている？',
-        'コメントをゼロスコアに付けない理由は？',
-        'format_for_lmstudio は何を返す？',
-        'VLM ログの期待フォーマットは？',
-        'LM 実行時のターゲット別ヒント（paint/world）とは？',
-        'EN_TO_JP_SIMPLE の目的は？',
-        '検索で日本語短文が来たときの処理フローは？'
-      ],
-  '検索': [
-        'VLM ログをどうやって取り出す？',
-        'キーワードベースのスコア計算方法は？',
-        '短い日本語クエリをどう扱う？',
-        'LM に渡すプロンプトの要点は？',
-        'LM の結果を安全にパースする手順は？',
-        '検索結果に coords が含まれる場合の優先度は？',
-        '検索で候補が全て低スコアのときの挙動は？',
-        '検索結果をフロントエンドでどうフィルタする？',
-        '検索 API のパラメータ説明は？',
-        'format_prompt エンドポイントの用途は？',
-        'キャッシュされた VLM ログの更新方法は？',
-        '検索デバッグ時に見るべきファイルは？',
-        '検索結果のソート基準は？',
-        '検索時に使用する言語マッピングの順序は？',
-        '検索結果の JSON スキーマ例は？',
-        'search_mod の主なテストケースは？',
-        '検索の top_k はどのように効く？',
-        'LM のタイムアウトと代替処理は？',
-        'LM のレスポンスが英語コメントだったらどうする？',
-        '検索の出力に含めるべき最低情報は？'
-      ],
-  'アセット': [
-        'OBJ と MTL がない場合 PNG をどう適用する？',
-        'GLB が placeholder のときフロントでは何をする？',
-        'ensureUVs での平面投影の考え方は？',
-        'テクスチャ候補の選び方は？',
-        'OBJ を fetch して検査する理由は？',
-        'OBJ の mtl がないときの最小 MTL 生成は？',
-        'GLB を Blob として扱うメリットは？',
-        'resources URL の baseUrl 処理は？',
-        'assets/glb に置くべき命名規則は？',
-        'テクスチャが反転して見えるときの対処は？',
-        'PNG が読み込めないときの代替は？',
-        'OBJ の簡易検査で見るポイントは？',
-        'GLB の magic ヘッダとは何か？',
-        'OBJ->MTL の参照解決の仕組みは？',
-        'plane fallback を作る理由と注意点は？',
-        'gltf-model の model-error への対応は？',
-        'テクスチャを適用した後の needsUpdate の扱いは？',
-        'Blob URL を使う際のメモリ注意点は？',
-        '外部ホストされたアセットでの CORS 対応は？',
-        'assets 削除/更新時のフロントキャッシュ対処は？'
-      ],
-  'デプロイ': [
-        'Windows 環境での推奨 start コマンドは？',
-        'PowerShell で日本語が文字化けする場合の対処は？',
-        '簡易 HTTP サーバでの配信方法と利点は？',
-        'ポート衝突が起きたらどう調査する？',
-        'サービスとしてデプロイする際の注意点は？',
-        '環境変数の管理方法（VLM_URL など）は？',
-        'プロセスのログ回転はどこで設定する？',
-        '外部アクセスする際の CORS 設定は？',
-        'ファイル権限でよくある問題は？',
-        '依存パッケージの固定化の方法は？',
-        '開発と本番での設定差分をどう管理する？',
-        'Python 仮想環境の推奨手順は？',
-        'uvicorn の推奨起動オプションは？',
-        'デバッグモードを切るべき理由は？',
-        'サービス監視のための簡易チェックは？',
-        'Streamlit を使わずに配布する利点は？',
-        'ローカルで http.server を勧める理由は？',
-        'ファイアウォール設定で注意する点は？',
-        'Windows での long path 問題対処は？',
-        '大きなファイルを配信する際の帯域対策は？'
-      ],
-  'トラブルシューティング': [
-        '404 が返る時の素早い切り分け手順は？',
-        'GLB が壊れている（placeholder）と判定されたら？',
-        'createImageBitmap で失敗する場合の回避策は？',
-        'fetch で CORS エラーが出たらまず確認する項目は？',
-        'tiles が真っ赤になる（placeholder）時の原因は？',
-        'objects.json が最新でない時の確認手順は？',
-        'LM 呼び出しでタイムアウトが起きる場合の対処は？',
-        'streamlit run が exit code 1 を返すときの原因候補は？',
-        'PowerShell でのパスのエスケープ問題は？',
-        '大量のタイルリクエストで 502 になる場合は？',
-        'worker がハングする時のログ調査ポイントは？',
-        'blob でモデルが読み込めない時の調査手順は？',
-        '検索結果が同じカテゴリしか返さない時に見る場所は？',
-        'コメントが重複して出る場合の原因は？',
-        'LM の JSON が壊れる原因の典型例は？',
-        'ファイルパスに日本語があると動かないことがあるか？',
-        '簡易サーバでファイルがダウンロードできない時に確認することは？',
-        'assets/glb/ に置いたファイルが即座に反映されない時の対応は？',
-        'tile cache をクリアする最短の方法は？',
-        '別ユーザーの tile 更新が反映されない時の確認箇所は？'
-      ],
-  'パフォーマンス': [
-        'タイルのプリロード戦略は？',
-        'タイルキャッシュのサイズはどのように決める？',
-        '同時リクエスト数上限を決める理由は？',
-        'createImageBitmap の利点と fallback は？',
-        'Pillow の MAX_IMAGE_PIXELS を設定する理由は？',
-        'WebSocket の接続数増加時の注意点は？',
-        'Open3D の重い処理はどう分離する？',
-        'TripoSR の処理時間短縮のヒントは？',
-        'GLB の軽量化（decimate/Draco）の使いどころは？',
-        'メモリリークを防ぐための Blob 管理法は？',
-        'フロントでの描画スロットリングの実装は？',
-        '非同期ジョブのタイムアウト戦略は？',
-        'tileCache の LRU 実装の簡単な方針は？',
-        '大量オブジェクトを scene に配置する際の工夫は？',
-        'デバッグ時に負荷を下げる設定は？',
-        '画像デコードの最適化ポイントは？',
-        'ネットワーク遅延でのユーザー体験を保つ工夫は？',
-        'フロント側での低精度プレビューの実装は？',
-        'worker 側でのバッチ処理の利点は？',
-        '大容量 canvas.png を扱うベストプラクティスは？'
-      ],
-  'セキュリティ': [
-        'VLM_TOKEN を安全に管理する方法は？',
-        '外部 LM に送るデータで気をつけるべきことは？',
-        '公開サーバでの認証最低要件は？',
-        'CSRF 対策はどの API に必要？',
-        'ファイルアップロードの検証で最低限やることは？',
-        'ログに秘匿情報を出さないための注意点は？',
-        '依存ライブラリの脆弱性対応はどう行う？',
-        'run_triposr.ps1 の実行権限注意点は？',
-        '外部アクセス時の rate-limit の簡易方針は？',
-        'サンドボックス化で考慮すべき点は？',
-        'config.yaml を誤ってコミットしないために何をする？',
-        'LM レスポンスを信用しすぎないための設計は？',
-        'ユーザアップロード画像のウイルス対策は？',
-        'ファイルパスを受け取る API のバリデーションは？',
-        'アクションログの最低記録項目は？',
-        '外部ストレージ(S3) を使うときの権限設計は？',
-        '一時ファイルの安全な削除手順は？',
-        'ジョブ結果の公開範囲を制御する方法は？',
-        'LM 呼び出しの失敗で秘密が漏れない工夫は？',
-        'テスト環境でのトークン取り扱いの推奨は？'
-      ],
-  '拡張': [
-        '新しいモデル（SD/TripoSR）を追加する手順は？',
-        'frontend にボタンを追加して FAQ を開く方法は？',
-        'search のテストケースを追加する方法は？',
-        'objects.json にメタを追加する実践例は？',
-        '新しい tile 操作（フィルタ）を追加するには？',
-        '自動テスト（smoke test）の作り方の例は？',
-        'CI で依存をキャッシュするベストプラクティスは？',
-        'ツール用の簡易 CLI を作る方法は？',
-        '新しい frontend ページをプロジェクトに追加する手順は？',
-        'Streamlit を使わずに自己完結型 UI を作る利点は？',
-        'ローカル開発でのデバッグ用ログ出力の増やし方は？',
-        '新しい VLM マッピングを追加する際の注意点は？',
-        'search モジュールのリファクタ方針の一例は？',
-        'テスト用のダミー VLM ログを作る方法は？',
-        '追加したアセットを自動で objects.json に登録するには？',
-        'フロントの E2E テストを始める最小構成は？',
-        '新しいキーワードマッピングのユニットテスト例は？',
-        'LM プロンプトのバージョン管理方法は？',
-        '拡張時に守るべき API 契約の簡潔なルールは？',
-        'ドキュメント更新を自動化するヒントは？'
-      ]
-    };
-
-    // Build genres array with multiple subgenres each and distribute 200 QAs across them
-    categoryDefs.forEach(cat => {
-      const subs = [];
-      // create 4 subgenres per category with names derived from focus keywords
-      const focusParts = (cat.focus || '').split(/[\,\s]+/).filter(Boolean);
-      const subCount = Math.max(3, Math.min(6, Math.ceil(focusParts.length)));
-      for (let si = 0; si < subCount; si++){
-        const subName = (focusParts[si] || (`${cat.name} サブ${si+1}`)).replace(/\W+/g,' ');
-        subs.push({ name: subName.trim(), qas: [] });
+    // JSON を読み込み、UI を初期化する関数。フェールオーバーはエラーメッセージを表示します。
+    async function loadFAQFromJSON(){
+      try{
+        const resp = await fetch('./faq_data.json');
+        if(!resp.ok) throw new Error('HTTP ' + resp.status + ' ' + resp.statusText);
+        const data = await resp.json();
+        genres = data.genres || [];
+        // if UI elements already exist, populate selects and render
+        if(typeof genreSelect !== 'undefined' && genreSelect){
+          genreSelect.innerHTML = '';
+          genres.forEach((g,idx)=>{ const o = document.createElement('option'); o.value = idx; o.textContent = `${g.name} (${g.subs?g.subs.length:0})`; genreSelect.appendChild(o); });
+          genreSelect.selectedIndex = 0;
+          populateSubgenres(0);
+          renderQuestions();
+          // apply deep links after data loaded
+          try{ applyDeepLink(); }catch(e){}
+        }
+      }catch(err){
+        console.error('faq_data.json load failed', err);
+        questionList.innerHTML = `<div class="small meta">FAQ データの読み込みに失敗しました。tools/faq_data.json が存在し、サーバ経由でアクセス可能か確認してください。</div>`;
+        answerArea.textContent = 'FAQ データが読み込めません。ローカルファイルから直接開いている場合、ブラウザの制限で fetch が失敗することがあります。';
       }
-      // Distribute 20 QAs per category into subs roughly evenly (total 200 overall)
-      const templates = qTemplates[cat.name] || [];
-      for (let i = 0; i < 20; i++){
-        const base = templates[i % templates.length] || `${cat.name} に関する質問 ${i+1}`;
-        const qtitle = base;
-        const answer = generateConcreteAnswer(cat.name, qtitle, i);
-        const targetSub = subs[i % subs.length];
-        targetSub.qas.push({ question: qtitle, answer });
-      }
-      genres.push({ name: cat.name, subs });
-    });
-
-    // Concrete answer generator: map question to targeted, useful replies (no fluff)
-    function generateConcreteAnswer(category, qtitle, idx){
-      const repo = repoRoot.replace(/\\/g, '/');
-      // normalize incoming category names (Japanese UI uses Japanese names)
-      const catNorm = (category || '').toString().toLowerCase();
-      const fileActionsHtml = (p) => `<div style="margin-top:8px"><button class='btn' onclick="viewFileHTTP('${encodeURIComponent(p)}')">表示 (HTTP)</button> <button class='btn' style='background:#666;margin-left:6px' onclick="openFileLocal('${encodeURI(p)}')">ローカルを開く</button> <span style='font-size:12px;margin-left:8px;color:#666'>${p}</span></div>`;
-      // Switch on common known question starts for succinct, practical answers
-      const q = qtitle.toLowerCase();
-      // match both English and Japanese category strings
-  if(catNorm.includes('バックエンド') || catNorm.includes('backend')){
-        if(q.includes('起動') || q.includes('start')){
-    return `<div><p>最短: プロジェクトルートで</p><pre>python -m uvicorn backend.main:app --host 127.0.0.1 --port 8001</pre><p>（PowerShell で実行してください）</p>` + fileActionsHtml('backend/main.py') + `</div>`;
-        }
-        if(q.includes('/api/search')){
-          return `<div><p>/api/search はクエリと target を受け取り、JSON で results を返します。例:</p>
-<pre>{ "query": "赤い家", "results": [{ "id": 123, "text": "赤い屋根の家", "score": 0.76, "coords": [345,678], "comment": "ねえ…これ、似てるよ？" }] }</pre>
-<p>実装の参照: <code>backend/models/search.py</code> の <code>search_similar</code> が結果を整形します。</p>` + fileActionsHtml('backend/models/search.py') + `</div>`;
-        }
-        if(q.includes('objects.json')){
-          return `<div><p>objects.json は <code>assets/glb/objects.json</code> にあります。</p><p>各オブジェクトは <code>id,x,y,z,rotation,scale,glb_url,quality,meta</code> を持ちます。読み書きは <code>backend/main.py</code> の load_objects/save_objects を参照してください。</p>` + fileActionsHtml('assets/glb/objects.json') + `</div>`;
-        }
-        if(q.includes('ジョブ')){
-          return `<div><p>generate エンドポイントはジョブを作成し、ThreadPoolExecutor で処理を実行します。</p><p>進捗は <code>current_jobs[job_id]</code> に格納され、WebSocket で通知されます。</p>` + fileActionsHtml('backend/main.py') + `</div>`;
-        }
-        if(q.includes('websocket')||q.includes('/ws')){
-          return `<div><p>WebSocket <code>/ws</code> は接続時に objects と modified tiles を送信します。job_progress や job_done を push します。接続管理: ConnectionManager。</p>` + fileActionsHtml('backend/main.py') + `</div>`;
-        }
-        if(q.includes('vlm_logs')){
-          return `<div><p>VLM ログ: <code>backend/cache/vlm_logs/*.json</code></p><p>search モジュールがこれらを横断して候補を作成します。</p>` + fileActionsHtml('backend/cache/vlm_logs/') + `</div>`;
-        }
-        if(q.includes('placeholder')||q.includes('glb')&&q.includes('placeholder')){
-          return `<div><p>assets/glb のファイル先頭に特殊マーカーがある場合、API は 404 相当の挙動を返します。フロントは OBJ/PNG の代替を試みます。</p>` + fileActionsHtml('backend/main.py') + `</div>`;
-        }
-        if(q.includes('tile')){
-          return `タイル画像は順に: data/tiles/tile_x_y.png -> cache_path(images) -> in-memory cache -> 最終的には赤いフォールバックタイルが返されます。get_tile_image を参照。` + fileActionsHtml('backend/main.py');
-        }
-        // generic backend fallback
-  return `<div><p>参照ファイル: <code>backend/main.py</code>, <code>backend/models/search.py</code></p><p>特定の操作手順が必要なら具体例を教えてください。</p>` + fileActionsHtml('backend/main.py') + `</div>`;
-      }
-  if(catNorm.includes('フロントエンド') || catNorm.includes('frontend')){
-        if(q.includes('world_new')){
-          return `<div><p>world_new は A-Frame シーンで <code>objects.json</code> を読み込み、glTF/OBJ を表示します。</p><p>カメラ移動は camera-rig によるアニメーションを使用します。</p>` + fileActionsHtml('frontend/world_new.html') + `</div>`;
-        }
-        if(q.includes('paint')){
-          return `<div><p>paint.html は大きな <code>canvas.png</code> をタイル表示します。Shift+Click でタイル選択、/api/paint で送信します（デフォルトタイルサイズ: 32x32）。</p>` + fileActionsHtml('frontend/paint.html') + `</div>`;
-        }
-    if(q.includes('obj')||q.includes('png')||q.includes('texture')){
-      return `<div><p>フロントでの手順（抜粋）:</p><pre>// ensureUVs: bbox に基づいた簡易平面投影 UV の補完
-function ensureUVs(object3d) {
-  object3d.traverse((node) => {
-    if (node.isMesh && node.geometry && node.geometry.isBufferGeometry) {
-      const geom = node.geometry;
-      if (!geom.attributes.uv || geom.attributes.uv.count === 0) {
-        if (!geom.boundingBox) geom.computeBoundingBox();
-        const bbox = geom.boundingBox;
-        const size = new THREE.Vector3(); bbox.getSize(size);
-        const pos = geom.attributes.position;
-        const count = pos.count;
-        const uvs = new Float32Array(count * 2);
-        for (let i = 0; i < count; i++) {
-          const x = pos.getX(i), y = pos.getY(i), z = pos.getZ(i);
-          const u = size.x>0 ? (x - bbox.min.x)/size.x : 0;
-          const v = size.z>0 ? (z - bbox.min.z)/size.z : (size.y>0 ? (y - bbox.min.y)/size.y : 0);
-          uvs[i*2] = u; uvs[i*2+1] = v;
-        }
-        geom.setAttribute('uv', new THREE.BufferAttribute(uvs,2));
-      }
-    }
-  });
-}
-</pre>` + fileActionsHtml('frontend/world_new.html') + `</div>`;
-    }
-        if(q.includes('create') && q.includes('plane')){
-          return `<div><p>createTexturedPlaneFallback 抜粋:</p><pre>function createTexturedPlaneFallback(entity, pngUrl) {
-    try {
-        entity.removeAttribute('obj-model');
-        entity.removeAttribute('gltf-model');
-        const plane = document.createElement('a-plane');
-        plane.setAttribute('position', '0 0 0');
-        plane.setAttribute('rotation', '-90 0 0');
-  plane.setAttribute('width', '1');
-  plane.setAttribute('height', '1');
-  plane.setAttribute('material', 'src: ' + pngUrl + '; side: double');
-        entity.appendChild(plane);
-    } catch (e) { console.warn('Failed to create textured plane fallback', e); }
-}</pre>` + fileActionsHtml('frontend/world_new.html') + `</div>`;
-        }
-  return `<div><p>詳細: <code>frontend/world_new.html</code> / <code>frontend/paint.html</code> を参照してください。</p><p>問題の切り分けは DevTools の Network と Console を確認すると早いです。</p>` + fileActionsHtml('frontend/world_new.html') + `</div>`;
-      }
-  if(catNorm.includes('モデル') || catNorm.includes('models')){
-        if(q.includes('vlm')||q.includes('logs')){
-          return `<div><p>VLM ログのパース処理: <code>backend/models/search.py</code> 内の <code>_read_vlm_logs</code> と <code>_build_candidates_from_logs</code> が担当します。</p>` + fileActionsHtml('backend/models/search.py') + `</div>`;
-        }
-        if(q.includes('lmstudio')||q.includes('vlm_url')||q.includes('token')){
-          return `<div><p>LMStudio を使うには <code>backend/config.yaml</code> に <code>VLM_URL</code> と <code>VLM_TOKEN</code> を設定します。</p><p>呼び出し実装: <code>_call_lmstudio_chat</code>（エラー時はキーワードフォールバック）</p>` + fileActionsHtml('backend/models/search.py') + `</div>`;
-        }
-        if(q.includes('comment')||q.includes('妹')){
-          return `<div><p>コメント生成ルール: 技術語の重複を避け、英語優勢の文は日本語に変換するなどの安全化を行います。スコアがゼロ（合致なし）の結果にはコメントを付けません。</p>` + fileActionsHtml('backend/models/search.py') + `</div>`;
-        }
-  return `<div><p>モデル周りの処理: <code>backend/models</code> ディレクトリを確認してください（VLM, sd, three_d など）。</p>` + fileActionsHtml('backend/models') + `</div>`;
-      }
-  if(catNorm.includes('検索') || catNorm.includes('search')){
-        if(q.includes('score')||q.includes('threshold')){
-          return `<div><p>スコアリング: キーワード一致比率を基本に、部分一致や包含一致でブーストします。デフォルトで <code>0.02</code> 未満はフィルタされます。</p>` + fileActionsHtml('backend/models/search.py') + `</div>`;
-        }
-        if(q.includes('format_prompt')){
-          return `<div><p><code>format_for_lmstudio</code> は LM に渡す payload を整形するデバッグ用のエンドポイントです（/api/format_prompt?q=...）。</p>` + fileActionsHtml('backend/main.py') + `</div>`;
-        }
-        return `<div><p>検索フロー: キーワードベース → LM 呼び出し → LM 結果のデデュープ/マージ。LM が低品質な場合はキーワード結果にフォールバックします。</p>` + fileActionsHtml('backend/models/search.py') + `</div>`;
-      }
-  if(catNorm.includes('アセット') || catNorm.includes('assets')){
-        if(q.includes('obj')||q.includes('mtl')){
-          return `<div><p>MTL が無い OBJ: PNG を手動で割り当て、最低限の MTL を動的に生成して読み込ませることができます。</p>` + fileActionsHtml('frontend/world_new.html') + `</div>`;
-        }
-        if(q.includes('glb')||q.includes('placeholder')){
-          return `<div><p>GLB 判定: 先頭バイトを検査し、正しい glTF ヘッダでなければフォールバックします。</p>` + fileActionsHtml('backend/main.py') + `</div>`;
-        }
-        return `<div><p>assets/glb と data/tiles の命名規約を守るとフロントの安定性が向上します。</p>` + fileActionsHtml('assets') + `</div>`;
-      }
-  if(catNorm.includes('デプロイ') || catNorm.includes('deployment')){
-        if(q.includes('powershell')||q.includes('文字化け')||q.includes('chcp')){
-          return `<div><p>PowerShell の文字化け対策: <code>chcp 65001</code> を実行するか、Windows Terminal の UTF-8 設定を有効にしてください。</p></div>`;
-        }
-        if(q.includes('http.server')){
-          return `<div><p>簡易配布: プロジェクトルートで <code>python -m http.server 8000</code> を実行すると <code>tools/faq.html</code> を HTTP 経由で開けます（file:// 制限回避）。</p></div>`;
-        }
-        return `<div><p>デプロイの基本: 環境変数（例: VLM_URL）を設定し、uvicorn をプロセスマネージャ（例: NSSM）で管理する運用が安定します。</p></div>`;
-      }
-  if(catNorm.includes('トラブルシューティング') || catNorm.includes('troubleshooting')){
-        if(q.includes('404')){
-          return `<div><p>404 の切り分け手順: URL とファイルパスの対応、StaticFiles のマウント（/assets, /data, /frontend）、middleware の placeholder 判定を確認してください。</p>` + fileActionsHtml('backend/main.py') + `</div>`;
-        }
-        if(q.includes('streamlit')||q.includes('exit code 1')){
-          return `<div><p><code>streamlit run</code> が exit code 1 を返す場合、依存未インストールや Python 環境の問題が多いです。まずは仮想環境を作り <code>pip install -r requirements.txt</code> を試してください。</p></div>`;
-        }
-        return `<div><p>初手: Console / Network を確認し、バックエンドログ（<code>backend/logs</code>）と VLM ログ（<code>backend/cache/vlm_logs</code>）を確認してください。</p>` + fileActionsHtml('backend/logs') + `</div>`;
-      }
-  if(catNorm.includes('パフォーマンス') || catNorm.includes('performance')){
-        if(q.includes('preload')||q.includes('プリロード')){
-          return `<div><p>プリロード戦略: 視界中心を優先、距離で優先順位を付けてロードします。並列数は MAX_CONCURRENT_REQUESTS で制御しています。</p>` + fileActionsHtml('frontend/paint.html') + `</div>`;
-        }
-        if(q.includes('pillow')||q.includes('max_image_pixels')){
-          return `<div><p>Pillow の <code>MAX_IMAGE_PIXELS</code> は大画像読み込み時の保護設定です。大きな canvas を扱う場合に適切に設定してください。</p>` + fileActionsHtml('backend/main.py') + `</div>`;
-        }
-        return `<div><p>タイルは LRU と in-memory キャッシュを組み合わせて管理しています。古いキャッシュは定期的に削除されます。</p>` + fileActionsHtml('frontend/paint.html') + `</div>`;
-      }
-  if(catNorm.includes('セキュリティ') || catNorm.includes('security')){
-        if(q.includes('token')||q.includes('vlm_token')){
-          return `<div><p>VLM_TOKEN は <code>config.yaml</code> または環境変数で管理し、決して公開リポジトリにコミットしないでください。</p></div>`;
-        }
-        return `<div><p>公開 API の最低限: 認証、レート制限、ログ管理を導入してください。</p></div>`;
-      }
-  if(catNorm.includes('拡張') || catNorm.includes('extending')){
-        if(q.includes('追加')||q.includes('モデルを追加')){
-          return `<div><p>新しいモデルの追加手順: <code>backend/models</code> に loader を追加し、config を更新、startup 時に読み込むのが基本です。</p>` + fileActionsHtml('backend/models') + `</div>`;
-        }
-        if(q.includes('faq を開く')){
-          return `<div><p>FAQ を開くボタンの追加: フロントからは <code>window.open('tools/faq.html', '_blank')</code> で十分です（相対パス）。</p>` + fileActionsHtml('tools/faq.html') + `</div>`;
-        }
-        return `<div><p>拡張時の基本: 既存 API 契約を壊さないこと、ユニットテストを追加することを優先してください。</p></div>`;
-      }
-
-      // Fallback generic answer (should rarely happen)
-      return `<div><p>詳しくはリポジトリ内の該当ファイルを参照してください:</p><div class="pill" style="display:inline-block;margin-top:6px">${repo}</div>` + fileActionsHtml('readme.md') + `</div>`;
     }
 
     // UI state
@@ -496,8 +107,21 @@ function ensureUVs(object3d) {
     const openRepo = document.getElementById('openRepo');
 
     openRepo.addEventListener('click', (e)=>{
-      // try to open local repo via file:// (some browsers block file links from http pages)
-      openRepo.href = 'file:///' + encodeURI(repoRoot.replace(/\\/g, '/'));
+      // Prefer PUBLIC_URL if backend exposes one via /api/public_info
+      e.preventDefault();
+      fetch('/api/public_info').then(r=>r.json()).then(info=>{
+        if(info && info.public_url){
+          // open the repo root on the public host
+          window.open(info.public_url, '_blank');
+        } else {
+          // try local file:// fallback
+          const fileUrl = 'file:///' + encodeURI(repoRoot.replace(/\\/g, '/'));
+          window.open(fileUrl, '_blank');
+        }
+      }).catch(()=>{
+        const fileUrl = 'file:///' + encodeURI(repoRoot.replace(/\\/g, '/'));
+        window.open(fileUrl, '_blank');
+      });
     });
 
     // populate genres
@@ -522,66 +146,78 @@ function ensureUVs(object3d) {
 
     function populateSubgenres(genreIdx){
       subgenreSelect.innerHTML = '';
-      const subs = genres[genreIdx].subs;
-      subs.forEach((s,si)=>{ const o = document.createElement('option'); o.value = si; o.textContent = s.name + ' ('+ s.qas.length +')'; subgenreSelect.appendChild(o); });
-      subgenreSelect.selectedIndex = 0;
+      const subs = (genres[genreIdx] && genres[genreIdx].subs) ? genres[genreIdx].subs : [];
+      if(subs.length === 0){
+        const o = document.createElement('option'); o.value = 0; o.textContent = '（サブカテゴリなし）'; o.disabled = true; subgenreSelect.appendChild(o);
+        subgenreSelect.selectedIndex = 0;
+        document.getElementById('subgenreName').textContent = '（なし）';
+        return;
+      }
+      subs.forEach((s,si)=>{ const o = document.createElement('option'); o.value = si; o.textContent = s.name + ' ('+ s.qas.length +')'; o.dataset.name = s.name; subgenreSelect.appendChild(o); });
+      // ensure selectedIndex valid
+      subgenreSelect.selectedIndex = Math.min(Math.max(0, subgenreSelect.selectedIndex), subs.length-1);
+      document.getElementById('subgenreName').textContent = subs[subgenreSelect.selectedIndex].name || '-';
     }
 
     function renderQuestions(){
-      const gIdx = genreSelect.selectedIndex; const sIdx = subgenreSelect.selectedIndex;
-      const qList = [];
+      let gIdx = genreSelect.selectedIndex; let sIdx = subgenreSelect.selectedIndex;
+      if(typeof gIdx !== 'number' || gIdx < 0 || gIdx >= genres.length) gIdx = 0;
+      const subs = (genres[gIdx] && genres[gIdx].subs) ? genres[gIdx].subs : [];
+      if(typeof sIdx !== 'number' || sIdx < 0 || sIdx >= subs.length) sIdx = 0;
+      // update visible subgenre label
+      document.getElementById('subgenreName').textContent = (subs[sIdx] && subs[sIdx].name) ? subs[sIdx].name : '（なし）';
+      let qList = [];
+      let groupBySub = false;
       if(searchBox.value.trim().length>0){
         // full-text search across all questions
         const q = searchBox.value.trim().toLowerCase();
         genres.forEach((g,gi)=> g.subs.forEach((s,si)=> s.qas.forEach((qa,qi)=>{
-          if((qa.question+qa.answer).toLowerCase().includes(q)) qList.push({g:gi,s:si,qa:qa});
-        })));
+          if((qa.question+qa.answer).toLowerCase().includes(q)) qList.push({g:gi,s:si,qa:qa, subName:s.name});
+        }))); 
       } else {
-        const selSubs = genres[gIdx].subs[sIdx].qas;
-        selSubs.forEach(qa=> qList.push({g:gIdx,s:sIdx,qa:qa}));
+        // group by subcategory for current genre
+        groupBySub = true;
+        qList = subs.map((sub,si)=>({sub, si, qas: sub.qas}));
       }
-      // render
-      questionList.innerHTML='';
-      countSpan.textContent = `(${qList.length})`;
-      qList.forEach((entry, i)=>{
-        const li = document.createElement('li'); li.className='item'; li.textContent = entry.qa.question; li.tabIndex = 0;
-        li.addEventListener('click', ()=>{ selectQuestion(entry); });
-        li.addEventListener('keydown', (ev)=>{ if(ev.key==='Enter') selectQuestion(entry); });
-        questionList.appendChild(li);
-        if(i===0) li.focus();
-      });
-      if(qList.length===0) answerArea.textContent = '該当する質問がありません。キーワードを変えて検索してください。';
+      // render as accordion cards grouped by subcategory
+        questionList.innerHTML='';
+        let total = 0;
+        if(groupBySub){
+          qList.forEach((group, gi)=>{
+            const card = document.createElement('div'); card.className = 'qa-card';
+            const header = document.createElement('div'); header.className='qa-header'; header.textContent = group.sub.name + ` (${group.qas.length})`;
+            const body = document.createElement('div'); body.className='qa-body';
+            group.qas.forEach((qa,qi)=>{
+              const qRow = document.createElement('div'); qRow.className='qa-row';
+              const qbtn = document.createElement('button'); qbtn.className='btn'; qbtn.style.margin='6px 6px 6px 0'; qbtn.textContent = qa.question;
+              qbtn.addEventListener('click', ()=>{ renderExpandedAnswer({g:gIdx,s:group.si,qa:qa}); });
+              qRow.appendChild(qbtn);
+              body.appendChild(qRow);
+              total++;
+            });
+            card.appendChild(header); card.appendChild(body); questionList.appendChild(card);
+          });
+        } else {
+          // search results: group by subName header
+          let currentSub = null; let subBody = null;
+          qList.forEach((entry,i)=>{
+            if(i===0 || entry.subName !== currentSub){
+              currentSub = entry.subName || '(サブカテゴリ)';
+              const card = document.createElement('div'); card.className = 'qa-card';
+              const header = document.createElement('div'); header.className='qa-header'; header.textContent = currentSub;
+              subBody = document.createElement('div'); subBody.className='qa-body';
+              card.appendChild(header); card.appendChild(subBody);
+              questionList.appendChild(card);
+            }
+            const qbtn = document.createElement('button'); qbtn.className='btn'; qbtn.style.margin='6px 6px 6px 0'; qbtn.textContent = entry.qa.question;
+            qbtn.addEventListener('click', ()=>{ renderExpandedAnswer(entry); });
+            subBody.appendChild(qbtn);
+            total++;
+          });
+        }
+        countSpan.textContent = `(${total})`;
+        if(total===0) answerArea.textContent = '該当する質問がありません。キーワードを変えて検索してください。';
     }
-
-    let currentSelected = null;
-    function selectQuestion(entry){
-      // highlight
-      Array.from(questionList.children).forEach(li=>li.classList.remove('selected'));
-      // find li whose text matches
-      const node = Array.from(questionList.children).find(li=>li.textContent===entry.qa.question);
-      if(node) node.classList.add('selected');
-      currentSelected = entry;
-      // render answer as HTML so buttons / pre / code render correctly
-      answerArea.innerHTML = entry.qa.answer;
-    }
-
-    // initial render
-    renderQuestions();
-
-    // --- File action helpers: try HTTP view then fallback to local file:// ---
-    window.viewFileHTTP = function(encodedPath){
-      try{
-        const p = decodeURIComponent(encodedPath);
-        // If the page itself was served via file:// try to open via http first
-        const base = (location.protocol === 'file:') ? 'http://127.0.0.1:8000/' : '';
-        const url = base + p.replace(/^[\\/]+/, '');
-        // open in new tab - user is expected to run `python -m http.server 8000` in repo root
-        window.open(url, '_blank');
-      }catch(e){
-        console.warn('viewFileHTTP failed', e);
-        alert('表示に失敗しました。HTTP サーバを起動しているか確認してください。');
-      }
-    };
 
     window.openFileLocal = function(encodedPath){
       try{
@@ -600,6 +236,32 @@ function ensureUVs(object3d) {
       if(e.key==='/' && document.activeElement!==searchBox){ e.preventDefault(); searchBox.focus(); }
     });
 
+    // render expanded detailed answer
+    function renderExpandedAnswer(entry){
+      try{
+        const qa = entry.qa || entry;
+        // build a rich answer with multiple sections
+        const container = document.createElement('div'); container.className='qa-expanded';
+        const title = document.createElement('h3'); title.textContent = qa.question; container.appendChild(title);
+        // raw answer may already contain HTML sections from generator
+        const ansHtml = document.createElement('div'); ansHtml.innerHTML = qa.answer || ''; container.appendChild(ansHtml);
+        // add file action buttons if generator supplied a path anchor
+        const meta = document.createElement('div'); meta.className='meta'; meta.style.marginTop='8px';
+        const copyLocal = document.createElement('button'); copyLocal.className='btn'; copyLocal.textContent='回答をコピー';
+        copyLocal.addEventListener('click', ()=>{ navigator.clipboard.writeText(ansHtml.textContent || qa.answer || ''); copyLocal.textContent='コピーしました'; setTimeout(()=>copyLocal.textContent='回答をコピー',1200); });
+        meta.appendChild(copyLocal);
+        container.appendChild(meta);
+        // display in right panel
+        answerArea.innerHTML = '';
+        answerArea.appendChild(container);
+        // scroll into view
+        answerArea.scrollIntoView({behavior:'smooth'});
+      }catch(e){ console.error('renderExpandedAnswer error', e); answerArea.textContent = '回答の表示でエラーが発生しました。開発者に報告してください。'; }
+    }
+
+    // legacy selectQuestion for compatibility
+    function selectQuestion(entry){ renderExpandedAnswer(entry); }
+
     // deep link support: ?q=... or ?genre=Backend&sub=...
     (function applyDeepLink(){
       try{
@@ -611,6 +273,31 @@ function ensureUVs(object3d) {
         else if(genre){ const gi = genres.findIndex(g=>g.name.toLowerCase()===genre.toLowerCase()); if(gi>=0){ genreSelect.selectedIndex=gi; populateSubgenres(gi); if(sub){ const si = genres[gi].subs.findIndex(s=>s.name.toLowerCase()===sub.toLowerCase()); if(si>=0) subgenreSelect.selectedIndex = si; } renderQuestions(); } }
       }catch(e){/* no-op */}
     })();
+
+    // helper: open a file via an HTTP preview (this expects a running simple HTTP server)
+    function viewFileHTTP(encodedPath){
+      try{
+        const p = decodeURIComponent(encodedPath);
+        // Ask backend if it knows a public URL to prefer
+        fetch('/api/public_info').then(r=>r.json()).then(info=>{
+          if(info && info.public_url){
+            // build absolute URL relative to public host
+            const base = info.public_url.replace(/\/$/, '');
+            const rel = p.replace(/^\/+/, '');
+            window.open(base + '/' + rel, '_blank');
+          } else {
+            const url = './' + p.replace(/^\/+/, '');
+            window.open(url, '_blank');
+          }
+        }).catch(()=>{
+          const url = './' + p.replace(/^\/+/, '');
+          window.open(url, '_blank');
+        });
+      }catch(e){ console.warn('viewFileHTTP failed', e); alert('HTTP 表示に失敗しました。簡易サーバが起動しているか確認してください。'); }
+    }
+
+    // start by loading FAQ data
+    loadFAQFromJSON();
 
   </script>
 </body>

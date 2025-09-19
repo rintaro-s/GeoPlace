@@ -354,6 +354,20 @@
       throttledRender();
       
       connectionStatus.textContent = 'タイリングシステムで初期化完了';
+      // Query backend for public info to determine baseUrl for API calls
+      try {
+        fetch('/api/public_info').then(r=>r.json()).then(info=>{
+          if(info && info.public_url){
+            window._PUBLIC_BASE = info.public_url.replace(/\/$/, '');
+            console.log('Using PUBLIC_BASE from server:', window._PUBLIC_BASE);
+            // display in connection status for debugging
+            connectionStatus.textContent = `API base: ${window._PUBLIC_BASE}`;
+          } else {
+            window._PUBLIC_BASE = '';
+            console.log('No public_url; using local base when file: protocol');
+          }
+        }).catch(e=>{ console.warn('public_info fetch failed', e); window._PUBLIC_BASE = ''; });
+      } catch(e){ window._PUBLIC_BASE = ''; }
     }
     
     function resizeCanvas() {
@@ -464,11 +478,9 @@
         activeRequests.set(key, controller);
 
         try {
-          // Determine base URL
-          let baseUrl = '';
-          if (location.protocol === 'file:') {
-            baseUrl = 'http://127.0.0.1:8001';
-          }
+          // Determine base URL: prefer PUBLIC_BASE if provided by server; otherwise, if opened as file: use localhost
+          let baseUrl = window._PUBLIC_BASE || '';
+          if(!baseUrl && location.protocol === 'file:') baseUrl = 'http://127.0.0.1:8001';
 
           const tileUrl = `${baseUrl}/api/tile/${tileX}/${tileY}?t=${Date.now()}`;
           // fetchを極力シンプルに（CORSやキャッシュの影響を排除）

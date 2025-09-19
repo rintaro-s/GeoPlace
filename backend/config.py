@@ -49,6 +49,8 @@ class Settings:
         self.VLM_RETRIES = d.get('VLM_RETRIES', 2)
         # VLM mode: 'image_b64' (default), 'openai_chat' (LMStudio chat-like messages), or 'multipart'
         self.VLM_MODE = d.get('VLM_MODE', 'image_b64')
+        # Optional externally reachable public URL (e.g. set by ngrok), used by frontends to build absolute links
+        self.PUBLIC_URL = d.get('PUBLIC_URL', None)
 
     @property
     def glb_dir(self) -> Path:

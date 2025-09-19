@@ -65,6 +65,26 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
+@app.middleware("http")
+async def simple_logging_middleware(request: Request, call_next):
+    try:
+        client = request.client
+        cli = f"{client.host}:{client.port}" if client else 'unknown'
+        print(f"[HTTP] {cli} -> {request.method} {request.url.path}")
+    except Exception:
+        print(f"[HTTP] incoming request: {request.method} {request.url.path}")
+    try:
+        resp = await call_next(request)
+        try:
+            print(f"[HTTP] {request.method} {request.url.path} -> {resp.status_code}")
+        except Exception:
+            pass
+        return resp
+    except Exception as e:
+        print(f"[HTTP] error handling {request.method} {request.url.path}: {e}")
+        raise
+
 router = APIRouter(prefix="/api")
 
 # include router so /api endpoints are available
@@ -692,6 +712,27 @@ async def startup_load_models():
             model_status['sd_loaded'] = False
             model_status['sd_error'] = str(e)
     threading.Thread(target=_load, daemon=True).start()
+
+
+@router.get('/public_info')
+async def api_public_info():
+    """Return configured public URL and basic server info for frontends.
+
+    This endpoint allows local frontends to discover an externally reachable URL
+    (for example an ngrok forwarding URL) so that 'open in browser' actions
+    can prefer that URL instead of local file:// links.
+    """
+    try:
+        public = getattr(settings, 'PUBLIC_URL', None)
+        # host/port not always known here; include uvicorn info if present in environment
+        return {'public_url': public, 'notes': 'If null, use local host links (ngrok can set PUBLIC_URL in config)'}
+    except Exception as e:
+        return JSONResponse({'error': str(e)}, status_code=500)
+
+
+@app.get('/api/public_info')
+async def api_public_info_wr():
+    return await api_public_info()
 
 
 # ---- Search API (semantic search over VLM logs) ----
